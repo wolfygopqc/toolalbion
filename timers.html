@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Albion | Timers & Décomptes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Configuration de la police Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #12121e; /* Fond très sombre */
+            color: #e4e4e7; /* Texte clair */
+        }
+        /* Style pour une barre de défilement propre */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background-color: #1a1a2e; }
+        
+        /* Styles pour les cartes de décompte */
+        .countdown-card {
+            background-color: #1a1a2e;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s;
+        }
+        /* Style pour le décompte en une seule ligne */
+        .countdown-value {
+            font-size: 2.5rem; /* 40px */
+            font-weight: 800;
+            color: #3b82f6; /* Bleu */
+            /* Retrait du flexbox: plus d'affichage colonne */
+            line-height: 1.1; 
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+
+    <script>
+        // --- Header (Logique pour la barre de navigation) ---
+        
+        const renderHeader = (activePage) => {
+            const pages = [
+                { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat' },
+                { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché', active: activePage === 'Market' },
+                { name: 'Gold', icon: 'coins', file: 'gold_prices.html', label: 'Or', active: activePage === 'Gold' },
+                { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage', active: activePage === 'Breeding' },
+                { name: 'Timers', icon: 'clock', file: 'timers.html', label: 'Timers', active: activePage === 'Timers' },
+            ];
+
+            const pageTitle = activePage === 'Timers' ? 
+                `<h1 class="text-2xl font-extrabold text-white flex items-center">
+                    <i data-lucide="clock" class="w-6 h-6 mr-2 text-blue-400"></i> Décomptes et Horaires
+                </h1>` : 
+                `<h1 class="text-2xl font-extrabold text-blue-400">Tool Albion</h1>`;
+
+            return `
+                <div class="header-section fixed top-0 left-0 right-0 z-40 bg-[#12121e]/95 backdrop-blur-sm shadow-lg border-b border-gray-700/50 py-4">
+                    <div class="max-w-full 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+                            ${pageTitle}
+                            <nav class="flex space-x-2 sm:space-x-4">
+                                ${pages.map(page => `
+                                    <a href="${page.file}" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 
+                                        ${page.active 
+                                            ? 'bg-blue-600 text-white shadow-md' 
+                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                        }">
+                                        <i data-lucide="${page.icon}" class="w-4 h-4 inline mr-1"></i>
+                                        <span>${page.label}</span>
+                                    </a>
+                                `).join('')}
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+        
+        // --- Logique de Décompte ---
+        
+        // Définition des cibles de décompte
+        const TARGETS = [
+            { 
+                id: 'dailyReset', 
+                name: 'Redémarrage Quotidien (Daily Reset) / Restart', 
+                icon: 'refresh-ccw', 
+                color: 'text-green-400',
+                // Heure quotidienne : 10h00 UTC
+                calculateTarget: () => {
+                    const now = new Date();
+                    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 10, 0, 0));
+                    // Si l'heure cible est déjà passée aujourd'hui, définir la cible pour demain
+                    if (target.getTime() < now.getTime()) {
+                        target.setUTCDate(target.getUTCDate() + 1);
+                    }
+                    return target;
+                },
+                details: 'Heure locale au Québec (HAE/HAC): 6h00 du matin. Le redémarrage a lieu toutes les 24 heures.'
+            },
+            { 
+                id: 'conquerorsChest', 
+                name: 'Coffre du Conquérant (Fin de Période)', 
+                icon: 'box', 
+                color: 'text-yellow-400',
+                // Heure hebdomadaire : Samedi à 10h00 UTC
+                calculateTarget: () => {
+                    const now = new Date();
+                    const saturday = 6; // Samedi = 6 (Dimanche est 0)
+                    let daysUntilSaturday = saturday - now.getUTCDay();
+                    if (daysUntilSaturday < 0 || (daysUntilSaturday === 0 && now.getUTCHours() >= 10)) {
+                        // S'il est déjà samedi et que l'heure est passée, on cible le samedi de la semaine prochaine
+                        daysUntilSaturday += 7;
+                    }
+                    
+                    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSaturday, 10, 0, 0));
+                    return target;
+                },
+                details: 'Se termine chaque samedi à 10h00 UTC (6h00 HAE/HAC). Assurez-vous d\'ouvrir votre coffre avant cette heure !'
+            },
+            { 
+                id: 'nextSeason', 
+                name: 'Prochaine Saison (Début/Fin)', 
+                icon: 'crown', 
+                color: 'text-red-400',
+                // Date cible: 10 Novembre 2025 à 10h23 UTC (basé sur 26j 13h demandé précédemment)
+                calculateTarget: () => {
+                    return new Date(Date.UTC(2025, 10, 10, 10, 23, 0)); // Année, Mois (0-11), Jour, Heure UTC, Minute
+                },
+                details: 'Compte à rebours avant le lancement/fin de la prochaine saison officielle.'
+            }
+        ];
+
+        /**
+         * Formate une différence de temps en un affichage concis (Jours, Heures, Minutes).
+         * @param {number} timeDiff - Différence de temps en millisecondes.
+         */
+        function formatTime(timeDiff) {
+            const totalSeconds = Math.floor(timeDiff / 1000);
+            
+            if (totalSeconds < 0) return 'Terminé!';
+
+            const days = Math.floor(totalSeconds / (3600 * 24));
+            const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+            let parts = [];
+            
+            // Si le décompte est long (jours > 0), nous affichons les jours, heures, minutes
+            if (days > 0) {
+                parts.push(`${days}j`);
+                parts.push(`${hours.toString().padStart(2, '0')}h`);
+                parts.push(`${minutes.toString().padStart(2, '0')}m`);
+            } else {
+                // Si le décompte est court (moins d'un jour), nous affichons les heures et les minutes (sans jours)
+                parts.push(`${hours.toString().padStart(2, '0')}h`);
+                parts.push(`${minutes.toString().padStart(2, '0')}m`);
+            }
+            
+            return parts.join(' ');
+        }
+
+        /**
+         * Met à jour tous les décomptes.
+         */
+        function updateAllCountdowns() {
+            const now = new Date().getTime();
+
+            TARGETS.forEach(target => {
+                const targetTime = target.calculateTarget().getTime();
+                const timeDiff = targetTime - now;
+                const formattedTime = formatTime(timeDiff); // Récupère le texte
+
+                const element = document.getElementById(target.id + 'Countdown');
+                if (element) {
+                    element.textContent = formattedTime; // Utilise textContent pour le texte simple
+                    
+                    // Gestion de la couleur si le temps est écoulé
+                    if (timeDiff <= 0) {
+                        element.classList.add('text-gray-500');
+                        element.classList.remove('text-blue-400');
+                    } else {
+                        element.classList.remove('text-gray-500');
+                        element.classList.add('text-blue-400');
+                    }
+                }
+            });
+        }
+        
+        /**
+         * Initialisation au chargement de la page.
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Rendre le header avec la page 'Timers' active
+            document.getElementById('header-container').innerHTML = renderHeader('Timers');
+            
+            // 2. Afficher les cartes de décompte initiales
+            const countdownsHtml = TARGETS.map(target => `
+                <div class="countdown-card border border-gray-700/50">
+                    <div class="flex items-center mb-3">
+                        <i data-lucide="${target.icon}" class="w-6 h-6 mr-3 ${target.color}"></i>
+                        <h3 class="text-xl font-semibold text-white">${target.name}</h3>
+                    </div>
+                    <div id="${target.id}Countdown" class="countdown-value text-blue-400">
+                        Chargement...
+                    </div>
+                    <p class="text-sm text-gray-400 mt-2">${target.details}</p>
+                </div>
+            `).join('');
+            
+            document.getElementById('countdown-grid').innerHTML = countdownsHtml;
+
+            // 3. Lancer la mise à jour des décomptes toutes les secondes
+            updateAllCountdowns();
+            setInterval(updateAllCountdowns, 1000);
+            
+            // 4. Recréer les icônes lucide
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
+    
+    <div id="header-container"></div>
+
+    <main class="min-h-screen p-4 sm:p-6 lg:p-8"> 
+        <div class="max-w-full 2xl:max-w-7xl mx-auto mt-64">
+
+            <section class="mb-12">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6 flex items-center">
+                    <i data-lucide="bell" class="w-7 h-7 mr-3"></i> Décomptes d'Événements Majeurs
+                </h2>
+                <div id="countdown-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    </div>
+            </section>
+
+            <section>
+                <h2 class="text-3xl font-bold text-blue-400 mb-6 flex items-center">
+                    <i data-lucide="map" class="w-7 h-7 mr-3"></i> Correspondance des Heures (Fuseaux Horaires)
+                </h2>
+                <p class="text-gray-400 mb-4">
+                    Albion Online utilise l'heure **UTC (Temps Universel Coordonné)** pour tous ses événements. Voici les correspondances avec les fuseaux horaires fréquemment utilisés.
+                </p>
+
+                <div class="overflow-x-auto bg-gray-800 rounded-xl shadow-lg border border-gray-700/50">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead class="bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-sm font-medium text-white uppercase tracking-wider">Événement Clé</th>
+                                <th class="px-6 py-3 text-center text-sm font-medium text-white uppercase tracking-wider">Heure UTC</th>
+                                <th class="px-6 py-3 text-center text-sm font-medium text-white uppercase tracking-wider">Québec (HAE/HAC)</th>
+                                <th class="px-6 py-3 text-center text-sm font-medium text-white uppercase tracking-wider">Europe Centrale (CEST/CET)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700">
+                            <tr class="hover:bg-gray-700 transition">
+                                <td class="px-6 py-4 whitespace-nowrap font-medium text-green-400">Redémarrage / Quête Quotidienne</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-white">10:00 UTC</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-white">06:00 HAE/HAC</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-white">12:00 / 11:00</td>
+                            </tr>
+                            
+                            <tr class="hover:bg-gray-700 transition">
+                                <td class="px-6 py-4 whitespace-nowrap font-medium text-yellow-400">Coffre du Conquérant (FIN)</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-white">Samedi 10:00 UTC</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-white">Samedi 06:00 HAE/HAC</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-white">Samedi 12:00 / 11:00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+        </div>
+    </main>
+    
+    <div id="notification-container" class="fixed bottom-4 right-4 z-50 space-y-3">
+    </div>
+
+</body>
+</html>
