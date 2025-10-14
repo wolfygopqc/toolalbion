@@ -6,6 +6,8 @@
     <title>Tool Albion | Prix de l'Or</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script> 
+    
     <style>
         /* Configuration de la police Inter */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
@@ -31,38 +33,104 @@
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
     <script>
-        // --- Configuration Générale ---
+        // --- Variables Globales ---
         const API_HOST = 'https://europe.albion-online-data.com'; 
+        let currentGoldPrice = 0; // Stocke le prix actuel de l'Or en Silver pour le convertisseur
+        let chart7DInstance = null;
+        let chart24HInstance = null;
 
         // --- Fonctions de Support ---
 
         /**
          * Formate un nombre en argent (Silver) avec séparation des milliers.
-         * @param {number} num - Le nombre à formater.
-         * @returns {string} Le nombre formaté avec l'icône Silver.
          */
         const formatSilver = (num) => {
             if (num === null || isNaN(num)) return 'N/A';
             return new Intl.NumberFormat('fr-FR').format(Math.round(num)) + ' S';
         };
 
-        // --- Header (Copié et mis à jour de index.html) ---
+        /**
+         * Calcule le temps écoulé depuis la date donnée.
+         */
+        const getTimeAgo = (dateString) => {
+            const now = new Date();
+            const past = new Date(dateString);
+            const diffInSeconds = Math.floor((now - past) / 1000);
+
+            if (diffInSeconds < 60) {
+                return `il y a ${diffInSeconds} secondes`;
+            }
+
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            if (diffInMinutes < 60) {
+                return `il y a ${diffInMinutes} minutes`;
+            }
+
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) {
+                return `il y a ${diffInHours} heures`;
+            }
+
+            const diffInDays = Math.floor(diffInHours / 24);
+            return `il y a ${diffInDays} jours`;
+        };
+        
+        // --- Fonctions de Conversion ---
+
+        /**
+         * Convertit un montant d'Or en Argent.
+         */
+        function convertGoldToSilver() {
+            const goldInput = parseFloat(document.getElementById('goldInput').value);
+            const silverResultSpan = document.getElementById('silverResult');
+
+            if (isNaN(goldInput) || goldInput <= 0 || currentGoldPrice === 0) {
+                silverResultSpan.textContent = '0 S';
+                return;
+            }
+
+            const result = goldInput * currentGoldPrice;
+            silverResultSpan.textContent = formatSilver(result);
+        }
+
+        /**
+         * Convertit un montant d'Argent en Or.
+         */
+        function convertSilverToGold() {
+            const silverInput = parseFloat(document.getElementById('silverInput').value);
+            const goldResultSpan = document.getElementById('goldResult');
+
+            if (isNaN(silverInput) || silverInput <= 0 || currentGoldPrice === 0) {
+                goldResultSpan.textContent = '0 Gold';
+                return;
+            }
+
+            const result = silverInput / currentGoldPrice;
+            goldResultSpan.textContent = result.toFixed(2) + ' Gold';
+        }
+
+        // --- Header (Logique pour la barre de navigation) ---
         
         const renderHeader = (activePage) => {
-            // Liste des pages incluant la nouvelle page 'Gold'
             const pages = [
                 { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat' },
                 { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché', active: activePage === 'Market' },
-                { name: 'Gold', icon: 'gold', file: 'gold_prices.html', label: 'Or', active: activePage === 'Gold' }, // NOUVEAU
+                { name: 'Gold', icon: 'coins', file: 'gold_prices.html', label: 'Or', active: activePage === 'Gold' }, 
                 { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage', active: activePage === 'Breeding' },
             ];
 
-            // Rendu du Header (Utilise fixed pour rester en haut)
+            const pageTitle = activePage === 'Gold' ? 
+                `<h1 class="text-2xl font-extrabold text-white flex items-center">
+                    <i data-lucide="gold" class="w-6 h-6 mr-2 text-yellow-400"></i> Analyse du Prix de l'Or
+                </h1>` : 
+                `<h1 class="text-2xl font-extrabold text-blue-400">Tool Albion</h1>`;
+
+            // NOTE : L'en-tête reste inchangé pour qu'il soit fixe.
             return `
                 <div class="header-section fixed top-0 left-0 right-0 z-40 bg-[#12121e]/95 backdrop-blur-sm shadow-lg border-b border-gray-700/50 py-4">
                     <div class="max-w-full 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="flex items-center justify-between h-16">
-                            <h1 class="text-2xl font-extrabold text-blue-400">Tool Albion</h1>
+                            ${pageTitle}
                             <nav class="flex space-x-2 sm:space-x-4">
                                 ${pages.map(page => `
                                     <a href="${page.file}" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 
@@ -81,47 +149,147 @@
             `;
         };
 
-        // --- Logique de l'Or ---
+        // --- Fonctions de Graphiques ---
+
+        /**
+         * Agrège les données historiques en une moyenne journalière.
+         */
+        const groupDataByDay = (data) => {
+            const grouped = {};
+            data.forEach(item => {
+                const date = new Date(item.timestamp);
+                const dayKey = date.toISOString().split('T')[0];
+
+                if (!grouped[dayKey]) {
+                    grouped[dayKey] = { sum: 0, count: 0, date: date };
+                }
+                grouped[dayKey].sum += item.price;
+                grouped[dayKey].count += 1;
+            });
+
+            return Object.keys(grouped)
+                .map(key => ({
+                    price: grouped[key].sum / grouped[key].count,
+                    timestamp: grouped[key].date
+                }))
+                .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+                .slice(-7); 
+        };
+
+        /**
+         * Génère un graphique Chart.js.
+         */
+        const renderChart = (canvasId, data, label, timeUnit) => {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const dataPrices = data.map(item => item.price);
+            const dataLabels = data.map(item => {
+                const date = new Date(item.timestamp);
+                return timeUnit === 'hour' ? date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+            });
+            
+            const chartInstance = canvasId === 'goldPriceChart7D' ? chart7DInstance : chart24HInstance;
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const newChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dataLabels,
+                    datasets: [{
+                        label: label,
+                        data: dataPrices,
+                        borderColor: '#3b82f6', 
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3b82f6',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: '#374151' }
+                        },
+                        y: {
+                            ticks: { color: '#9ca3af', callback: function(value) { return formatSilver(value).replace(' S', ''); } },
+                            grid: { color: '#374151' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    return label + formatSilver(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (canvasId === 'goldPriceChart7D') {
+                chart7DInstance = newChart;
+            } else {
+                chart24HInstance = newChart;
+            }
+        };
+
+        // --- Logique Principale de Récupération ---
         
         /**
-         * Récupère et affiche les prix de l'Or.
+         * Récupère et affiche toutes les données de l'Or (statistiques, convertisseur, graphiques).
          */
-        async function fetchAndRenderGoldPrices() {
+        async function fetchAndRenderGoldData() {
             const goldContainer = document.getElementById('gold-data-container');
+            const rateDisplay = document.getElementById('currentRateDisplay');
+            rateDisplay.textContent = 'Taux actuel: Chargement...';
             goldContainer.innerHTML = '<p class="text-center text-blue-400"><i data-lucide="loader" class="w-6 h-6 inline animate-spin mr-2"></i>Chargement des données de l\'Or...</p>';
-            lucide.createIcons();
+            
 
             try {
-                // Endpoint pour obtenir les 20 prix les plus récents de l'Or
-                const url = `${API_HOST}/api/v2/stats/gold.json?count=20`;
+                // Requête de 7 jours (168 heures) de données
+                const url = `${API_HOST}/api/v2/stats/gold.json?count=168`; 
                 const response = await fetch(url);
 
                 if (!response.ok) {
                     throw new Error(`Erreur API: ${response.statusText}`);
                 }
 
-                const data = await response.json();
+                const historicalData = await response.json();
 
-                if (!data || data.length === 0) {
+                if (!historicalData || historicalData.length === 0) {
                     goldContainer.innerHTML = '<p class="text-center text-red-400">Aucune donnée d\'Or trouvée.</p>';
                     return;
                 }
 
-                // 1. Récupérer le prix le plus récent
-                const latestPrice = data[0].price;
-                const latestTimestamp = new Date(data[0].timestamp);
+                // 1. Récupérer le prix le plus récent et mettre à jour le taux global
+                const latestPrice = historicalData[0].price;
+                const latestTimestamp = historicalData[0].timestamp; 
+                currentGoldPrice = latestPrice; // Mis à jour pour le convertisseur
 
-                // 2. Calculer la moyenne des 20 prix
-                const sumPrices = data.reduce((sum, item) => sum + item.price, 0);
-                const averagePrice = sumPrices / data.length;
+                // 2. Calculer la moyenne des 20 prix pour les statistiques
+                const data20 = historicalData.slice(0, 20);
+                const sumPrices = data20.reduce((sum, item) => sum + item.price, 0);
+                const averagePrice = sumPrices / data20.length;
 
-                // 3. Calculer la différence et le pourcentage par rapport à la moyenne
+                // 3. Calculer l'évolution
                 const difference = latestPrice - averagePrice;
                 const differencePercentage = ((difference / averagePrice) * 100).toFixed(2);
                 const differenceClass = difference >= 0 ? 'text-green-400' : 'text-red-400';
                 const differenceIcon = difference >= 0 ? '<i data-lucide="trending-up" class="w-5 h-5 inline mr-1"></i>' : '<i data-lucide="trending-down" class="w-5 h-5 inline mr-1"></i>';
                 
-                // 4. Afficher le rendu
+                // 4. Afficher le rendu des cartes (statistiques)
                 goldContainer.innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         
@@ -131,7 +299,7 @@
                             </h3>
                             <p class="text-4xl font-extrabold text-white">${formatSilver(latestPrice)}</p>
                             <p class="text-sm text-gray-400 mt-2">
-                                Dernière mise à jour: ${latestTimestamp.toLocaleTimeString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                Dernière mise à jour: <span class="font-semibold">${getTimeAgo(latestTimestamp)}</span>
                             </p>
                         </div>
 
@@ -154,10 +322,27 @@
                         </div>
                     </div>
                 `;
+                
+                // 5. Mettre à jour le taux affiché et initialiser les convertisseurs
+                rateDisplay.textContent = `Taux actuel: 1 Gold = ${formatSilver(currentGoldPrice)}`;
+                convertGoldToSilver();
+                convertSilverToGold();
+                
+                // 6. Rendre les Graphiques
+                
+                // Graphique 24 Heures (les 24 points les plus récents, en les affichant du plus ancien au plus récent)
+                const data24HChart = historicalData.slice(0, 24).reverse();
+                renderChart('goldPriceChart24H', data24HChart, 'Prix Or (24H)', 'hour');
+
+                // Graphique 7 Jours (agrégation par jour)
+                const data7DChart = groupDataByDay(historicalData);
+                renderChart('goldPriceChart7D', data7DChart, 'Prix Or (7 Jours)', 'day');
+
 
             } catch (error) {
-                console.error("Erreur lors de la récupération des prix de l'Or:", error);
+                console.error("Erreur lors de la récupération des données de l'Or:", error);
                 goldContainer.innerHTML = `<p class="text-center text-red-400">Erreur lors de la récupération des données : ${error.message}</p>`;
+                rateDisplay.textContent = 'Taux actuel: N/A';
             } finally {
                 // Recréer les icônes après la mise à jour du contenu
                 if (typeof lucide !== 'undefined') {
@@ -174,19 +359,64 @@
             document.getElementById('header-container').innerHTML = renderHeader('Gold');
 
             // 2. Lancer la récupération des données de l'Or
-            fetchAndRenderGoldPrices();
+            fetchAndRenderGoldData();
         });
     </script>
     
     <div id="header-container"></div>
 
-    <main class="min-h-screen p-4 sm:p-6 lg:p-8 pt-28"> <div class="max-w-full 2xl:max-w-7xl mx-auto">
-            <h1 class="text-4xl font-extrabold text-white mb-8 border-b border-gray-700/50 pb-4">
-                <i data-lucide="gold" class="w-8 h-8 inline mr-3 text-yellow-400"></i> Analyse du Prix de l'Or
-            </h1>
+    <main class="min-h-screen p-4 sm:p-6 lg:p-8"> 
+        <div class="max-w-full 2xl:max-w-7xl mx-auto mt-64">
+            
+            <div class="bg-gray-800/80 p-6 rounded-xl shadow-lg mb-8 border border-gray-700/50">
+                <h2 class="text-2xl font-bold text-white mb-4 flex items-center">
+                    <i data-lucide="calculator" class="w-6 h-6 mr-3 text-yellow-400"></i> Convertisseur de Devises
+                </h2>
 
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    <div class="p-4 bg-gray-900 rounded-lg border border-gray-700/50">
+                        <h3 class="text-lg font-semibold text-yellow-300 mb-3">OR → Argent</h3>
+                        <div class="flex space-x-3 items-center">
+                            <input type="number" id="goldInput" placeholder="Montant Or" oninput="convertGoldToSilver()" class="custom-input flex-grow" min="1">
+                            <i data-lucide="chevrons-right" class="w-6 h-6 text-gray-500"></i>
+                            <span id="silverResult" class="text-xl font-bold text-green-400 w-1/2 text-right">0 S</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-gray-900 rounded-lg border border-gray-700/50">
+                        <h3 class="text-lg font-semibold text-green-300 mb-3">Argent → OR</h3>
+                        <div class="flex space-x-3 items-center">
+                            <input type="number" id="silverInput" placeholder="Montant Argent" oninput="convertSilverToGold()" class="custom-input flex-grow" min="1">
+                            <i data-lucide="chevrons-right" class="w-6 h-6 text-gray-500"></i>
+                            <span id="goldResult" class="text-xl font-bold text-yellow-400 w-1/2 text-right">0 Gold</span>
+                        </div>
+                    </div>
+                </div>
+                <p id="currentRateDisplay" class="text-sm text-gray-400 mt-4 text-center">Taux actuel: Chargement...</p>
+            </div>
             <div id="gold-data-container" class="mt-8">
                 </div>
+            
+            <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-gray-800/80 p-6 rounded-xl shadow-lg border border-gray-700/50">
+                    <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                        <i data-lucide="line-chart" class="w-5 h-5 mr-2 text-blue-400"></i> Historique (7 Jours, Moyenne Jour.)
+                    </h2>
+                    <div class="relative h-72">
+                        <canvas id="goldPriceChart7D"></canvas>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800/80 p-6 rounded-xl shadow-lg border border-gray-700/50">
+                    <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 mr-2 text-blue-400"></i> Historique (24 Heures)
+                    </h2>
+                    <div class="relative h-72">
+                        <canvas id="goldPriceChart24H"></canvas>
+                    </div>
+                </div>
+            </div>
             
         </div>
     </main>
