@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Albion | Classements & Recherche (Europe)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Configuration de la police Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #12121e; /* Fond très sombre */
+            color: #e4e4e7; /* Texte clair */
+        }
+        /* Style pour une barre de défilement propre */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background-color: #1a1a2e; }
+        
+        .custom-input {
+            background-color: #1a1a2e;
+            border: 1px solid #3f3f46;
+            color: #e4e4e7;
+            padding: 10px 15px;
+            border-radius: 8px;
+            width: 100%;
+        }
+        
+        /* Style pour les cartes de statistiques */
+        .stat-card {
+            background-color: #1a1a2e;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+
+    <script>
+        // --- Variables Globales ---
+        // API spécifique au serveur Europe (AMS)
+        const API_HOST = 'https://gameinfo-ams.albiononline.com/api/gameinfo'; 
+
+        // --- Header (Logique pour la barre de navigation) ---
+        
+        const renderHeader = (activePage) => {
+            const pages = [
+                { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat' },
+                { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché', active: activePage === 'Market' },
+                { name: 'Gold', icon: 'coins', file: 'gold_prices.html', label: 'Or', active: activePage === 'Gold' },
+                { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage', active: activePage === 'Breeding' },
+                { name: 'Timers', icon: 'clock', file: 'timers.html', label: 'Timers', active: activePage === 'Timers' },
+                // Lien vers la page Leaderboards
+                { name: 'Leaderboards', icon: 'trophy', file: 'leaderboards.html', label: 'Classements', active: activePage === 'Leaderboards' },
+            ];
+
+            const pageTitle = activePage === 'Leaderboards' ? 
+                `<h1 class="text-2xl font-extrabold text-white flex items-center">
+                    <i data-lucide="trophy" class="w-6 h-6 mr-2 text-yellow-400"></i> Classements & Stats (Europe)
+                </h1>` : 
+                `<h1 class="text-2xl font-extrabold text-blue-400">Tool Albion</h1>`;
+
+            return `
+                <div class="header-section fixed top-0 left-0 right-0 z-40 bg-[#12121e]/95 backdrop-blur-sm shadow-lg border-b border-gray-700/50 py-4">
+                    <div class="max-w-full 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+                            ${pageTitle}
+                            <nav class="flex space-x-2 sm:space-x-4">
+                                ${pages.map(page => `
+                                    <a href="${page.file}" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 
+                                        ${page.active 
+                                            ? 'bg-blue-600 text-white shadow-md' 
+                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                        }">
+                                        <i data-lucide="${page.icon}" class="w-4 h-4 inline mr-1"></i>
+                                        <span>${page.label}</span>
+                                    </a>
+                                `).join('')}
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+        
+        /**
+         * Formate un nombre pour l'affichage (ex: 1234567 -> 1 234 567).
+         */
+        const formatNumber = (num) => {
+            if (num === null || isNaN(num) || num === undefined) return '0';
+            return new Intl.NumberFormat('fr-FR').format(Math.round(num));
+        };
+        
+        /**
+         * Affiche un message d'erreur de connexion.
+         */
+        function displayConnectionError(containerId, error) {
+            const container = document.getElementById(containerId);
+             let errorMessage = `Une erreur est survenue lors de la recherche : ${error.message}.`;
+
+            // Le blocage CORS est l'erreur la plus probable en local
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('Load failed')) {
+                errorMessage = `
+                    <p class="text-red-400 font-bold mb-2">Erreur de Connexion (Bloqué par votre navigateur)</p>
+                    <p class="text-gray-300">
+                        La connexion à l'API du serveur Europe a été bloquée. Ceci est normal en ouvrant le fichier localement (<span class="text-yellow-300">protocole file:///</span>).
+                    </p>
+                    <p class="text-sm mt-2 text-yellow-400">
+                        <strong>Solution :</strong> Ouvrez le fichier via un serveur web local (Ex: extension Live Server de VS Code) pour que la recherche fonctionne.
+                    </p>
+                `;
+            }
+            container.innerHTML = `<div class="p-4 bg-red-800/20 rounded-lg mt-4 border border-red-700">${errorMessage}</div>`;
+        }
+
+
+        // --- Fonctions de Recherche de Joueur ---
+
+        /**
+         * Cherche un joueur et récupère son ID.
+         */
+        async function searchPlayer(playerName) {
+            const searchUrl = `${API_HOST}/search?q=${encodeURIComponent(playerName)}`;
+            
+            try {
+                const response = await fetch(searchUrl);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const exactMatch = data.players.find(p => p.Name.toLowerCase() === playerName.toLowerCase());
+
+                return exactMatch || (data.players.length > 0 ? data.players[0] : null);
+                
+            } catch (error) {
+                console.error("Erreur de recherche joueur:", error);
+                displayConnectionError('player-stats-container', error);
+                return null;
+            }
+        }
+        
+        /**
+         * Récupère les statistiques détaillées d'un joueur par son ID.
+         */
+        async function fetchPlayerStats(playerId) {
+            const statsUrl = `${API_HOST}/players/${playerId}/stats`; 
+            
+            try {
+                const response = await fetch(statsUrl);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur de récupération des stats joueur:", error);
+                document.getElementById('player-stats-container').innerHTML = `<p class="text-center text-red-400 mt-4">Erreur lors de la récupération des statistiques détaillées. ${error.message}</p>`;
+                return null;
+            }
+        }
+
+        /**
+         * Affiche les statistiques du joueur.
+         */
+        function displayPlayerStats(playerData) {
+            const container = document.getElementById('player-stats-container');
+            if (!playerData || !playerData.Name) {
+                container.innerHTML = `<p class="text-center text-yellow-400 mt-4">Joueur non trouvé ou données indisponibles.</p>`;
+                return;
+            }
+            
+            const pvpKills = playerData.KillFame || 0;
+            const pvpDeaths = playerData.DeathFame || 1; 
+            const kda = (pvpKills / pvpDeaths).toFixed(2);
+            const pveFame = playerData.LifetimeStatistics && playerData.LifetimeStatistics.PvE ? playerData.LifetimeStatistics.PvE.Total : 0;
+            const totalTimePlayed = playerData.LifetimeStatistics && playerData.LifetimeStatistics.General ? playerData.LifetimeStatistics.General.TotalTimePlayed : 0;
+
+            container.innerHTML = `
+                <div class="bg-gray-800 p-6 rounded-xl shadow-2xl border border-blue-700/50 mt-6">
+                    <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-4">
+                        <h2 class="text-3xl font-bold text-white flex items-center">
+                            <i data-lucide="user" class="w-7 h-7 mr-3 text-blue-400"></i> ${playerData.Name}
+                        </h2>
+                        ${playerData.GuildName ? `<span class="text-lg font-medium text-gray-400">Guilde : ${playerData.GuildName}</span>` : ''}
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="stat-card"><p class="text-sm text-gray-400">Total Kills (Fame)</p><p class="text-2xl font-bold text-red-400">${formatNumber(pvpKills)}</p></div>
+                        <div class="stat-card"><p class="text-sm text-gray-400">K/D Ratio</p><p class="text-2xl font-bold text-blue-400">${kda}</p></div>
+                        <div class="stat-card"><p class="text-sm text-gray-400">Fame PvE Totale</p><p class="text-2xl font-bold text-green-400">${formatNumber(pveFame)}</p></div>
+                        <div class="stat-card"><p class="text-sm text-gray-400">Ancienneté (Heures)</p><p class="text-2xl font-bold text-yellow-400">${formatNumber(totalTimePlayed)}</p></div>
+                    </div>
+                    
+                    <div class="mt-6 border-t border-gray-700 pt-4">
+                        <h3 class="text-xl font-semibold text-white mb-3">Statistiques de Récolte</h3>
+                        <div class="flex flex-wrap gap-4 text-sm text-gray-300">
+                            <p>Bois: <span class="font-bold text-white">${formatNumber(playerData.LifetimeStatistics.Gathering.Wood.Total || 0)}</span></p>
+                            <p>Pierre: <span class="font-bold text-white">${formatNumber(playerData.LifetimeStatistics.Gathering.Stone.Total || 0)}</span></p>
+                            <p>Fibre: <span class="font-bold text-white">${formatNumber(playerData.LifetimeStatistics.Gathering.Fiber.Total || 0)}</span></p>
+                            <p>Peau: <span class="font-bold text-white">${formatNumber(playerData.LifetimeStatistics.Gathering.Hide.Total || 0)}</span></p>
+                            <p>Poisson: <span class="font-bold text-white">${formatNumber(playerData.LifetimeStatistics.Gathering.Fishing.Total || 0)}</span></p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+        }
+
+        /**
+         * Gère le formulaire de recherche de joueur.
+         */
+        async function handlePlayerSearch(event) {
+            event.preventDefault(); 
+            const playerName = document.getElementById('playerNameInput').value.trim();
+            const container = document.getElementById('player-stats-container');
+            
+            if (!playerName) { container.innerHTML = `<p class="text-center text-yellow-400 mt-4">Veuillez entrer un nom de joueur.</p>`; return; }
+            
+            container.innerHTML = `<p class="text-center text-blue-400 mt-4"><i data-lucide="loader" class="w-6 h-6 inline animate-spin mr-2"></i>Recherche de ${playerName}...</p>`;
+            
+            const playerInfo = await searchPlayer(playerName);
+            if (!playerInfo) { 
+                if (!container.innerHTML.includes('Erreur de Connexion')) {
+                    container.innerHTML = `<p class="text-center text-yellow-400 mt-4">Le joueur "${playerName}" n'a pas été trouvé. Vérifiez l'orthographe.</p>`;
+                }
+                return; 
+            }
+            
+            const playerStats = await fetchPlayerStats(playerInfo.Id);
+            displayPlayerStats(playerStats);
+        }
+
+        // --- Fonctions de Recherche de Guilde ---
+
+        /**
+         * Cherche une guilde et récupère son ID.
+         */
+        async function searchGuild(guildName) {
+            const searchUrl = `${API_HOST}/search?q=${encodeURIComponent(guildName)}`;
+            
+            try {
+                const response = await fetch(searchUrl);
+                if (!response.ok) { throw new Error(`Erreur HTTP: ${response.status}`); }
+                
+                const data = await response.json();
+                const exactMatch = data.guilds.find(g => g.Name.toLowerCase() === guildName.toLowerCase());
+
+                return exactMatch || (data.guilds.length > 0 ? data.guilds[0] : null);
+                
+            } catch (error) {
+                console.error("Erreur de recherche guilde:", error);
+                displayConnectionError('guild-stats-container', error);
+                return null;
+            }
+        }
+        
+        /**
+         * Récupère les statistiques détaillées d'une guilde par son ID.
+         */
+        async function fetchGuildStats(guildId) {
+            // L'API Guilds donne déjà des stats suffisantes
+            const statsUrl = `${API_HOST}/guilds/${guildId}`; 
+            
+            try {
+                const response = await fetch(statsUrl);
+                if (!response.ok) { throw new Error(`Erreur HTTP: ${response.status}`); }
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur de récupération des stats guilde:", error);
+                document.getElementById('guild-stats-container').innerHTML = `<p class="text-center text-red-400 mt-4">Erreur lors de la récupération des statistiques détaillées de la guilde. ${error.message}</p>`;
+                return null;
+            }
+        }
+
+        /**
+         * Affiche les statistiques de la guilde.
+         */
+        function displayGuildStats(guildData) {
+            const container = document.getElementById('guild-stats-container');
+            if (!guildData || !guildData.Name) {
+                container.innerHTML = `<p class="text-center text-yellow-400 mt-4">Guilde non trouvée ou données indisponibles.</p>`;
+                return;
+            }
+            
+            const killFame = guildData.KillFame || 0;
+            const deathFame = guildData.DeathFame || 1;
+            const kda = (killFame / deathFame).toFixed(2);
+            const totalMembers = guildData.MemberCount || 0;
+
+            container.innerHTML = `
+                <div class="bg-gray-800 p-6 rounded-xl shadow-2xl border border-yellow-700/50 mt-6">
+                    <div class="flex items-center justify-between border-b border-gray-700 pb-3 mb-4">
+                        <h2 class="text-3xl font-bold text-white flex items-center">
+                            <i data-lucide="shield-half" class="w-7 h-7 mr-3 text-yellow-400"></i> ${guildData.Name}
+                        </h2>
+                        <span class="text-lg font-medium text-gray-400">Tag : [${guildData.AllianceTag || 'Aucun'}]</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="stat-card border-yellow-400"><p class="text-sm text-gray-400">Membres</p><p class="text-2xl font-bold text-yellow-400">${formatNumber(totalMembers)}</p></div>
+                        <div class="stat-card border-red-400"><p class="text-sm text-gray-400">Total Kill Fame</p><p class="text-2xl font-bold text-red-400">${formatNumber(killFame)}</p></div>
+                        <div class="stat-card border-blue-400"><p class="text-sm text-gray-400">K/D Ratio</p><p class="text-2xl font-bold text-blue-400">${kda}</p></div>
+                        <div class="stat-card border-green-400"><p class="text-sm text-gray-400">Fame Totale</p><p class="text-2xl font-bold text-green-400">${formatNumber(guildData.Fame || 0)}</p></div>
+                    </div>
+                    
+                    <div class="mt-6 border-t border-gray-700 pt-4">
+                        <p class="text-lg text-gray-300">Fondateur : <span class="font-bold text-white">${guildData.FounderName || 'Inconnu'}</span></p>
+                    </div>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+        }
+
+        /**
+         * Gère le formulaire de recherche de guilde.
+         */
+        async function handleGuildSearch(event) {
+            event.preventDefault(); 
+            const guildName = document.getElementById('guildNameInput').value.trim();
+            const container = document.getElementById('guild-stats-container');
+            
+            if (!guildName) { container.innerHTML = `<p class="text-center text-yellow-400 mt-4">Veuillez entrer un nom de guilde.</p>`; return; }
+            
+            container.innerHTML = `<p class="text-center text-blue-400 mt-4"><i data-lucide="loader" class="w-6 h-6 inline animate-spin mr-2"></i>Recherche de ${guildName}...</p>`;
+            
+            const guildInfo = await searchGuild(guildName);
+            if (!guildInfo) { 
+                 if (!container.innerHTML.includes('Erreur de Connexion')) {
+                    container.innerHTML = `<p class="text-center text-yellow-400 mt-4">La guilde "${guildName}" n'a pas été trouvée. Vérifiez l'orthographe.</p>`;
+                }
+                return; 
+            }
+            
+            const guildStats = await fetchGuildStats(guildInfo.Id);
+            displayGuildStats(guildStats);
+        }
+
+        // --- Fonctions de Classements (Simulé) ---
+        
+        /**
+         * Simule le chargement des classements.
+         */
+        function loadLeaderboards() {
+            const container = document.getElementById('leaderboard-content');
+            
+            container.innerHTML = `
+                <div class="p-6 bg-gray-800 rounded-xl border border-gray-700/50">
+                    <h3 class="text-2xl font-bold text-yellow-300 mb-4 flex items-center">
+                        <i data-lucide="list-ordered" class="w-6 h-6 mr-3"></i> Classements (Prochainement)
+                    </h3>
+                    <p class="text-gray-400 mb-4">
+                        L'affichage des classements du serveur Europe (PvP, PvE, Récolte) est en cours de développement car l'API nécessite des paramètres spécifiques pour chaque catégorie.
+                    </p>
+                    
+                    <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                        <select class="custom-input flex-grow">
+                            <option>Sélectionner le Type de Classement</option>
+                            <option>Guilde - Saisons</option>
+                            <option>PvP Kill Fame (Global)</option>
+                            <option>PvE Fame (Dungeons)</option>
+                        </select>
+                        <button class="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-500 transition cursor-not-allowed">
+                            Afficher le Top 100
+                        </button>
+                    </div>
+                    
+                    <div class="mt-6 p-4 bg-gray-900 rounded-lg text-center text-gray-500">
+                        <p>Les données de classement seront affichées ici.</p>
+                    </div>
+                </div>
+            `;
+            
+            if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+        }
+
+
+        // --- Initialisation ---
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('header-container').innerHTML = renderHeader('Leaderboards');
+            
+            // Attacher les écouteurs d'événement
+            document.getElementById('player-search-form').addEventListener('submit', handlePlayerSearch);
+            document.getElementById('guild-search-form').addEventListener('submit', handleGuildSearch);
+            
+            loadLeaderboards();
+            
+            if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+        });
+    </script>
+    
+    <div id="header-container"></div>
+
+    <main class="min-h-screen p-4 sm:p-6 lg:p-8"> 
+        <div class="max-w-full 2xl:max-w-7xl mx-auto mt-64">
+            
+            <h2 class="text-3xl font-bold text-blue-400 mb-6 flex items-center">
+                <i data-lucide="search" class="w-7 h-7 mr-3"></i> Chercher des Statistiques
+            </h2>
+            
+            <section class="mb-8 p-6 bg-gray-800/80 rounded-xl shadow-lg border border-gray-700/50">
+                <h3 class="text-2xl font-bold text-blue-300 mb-4 flex items-center">
+                    <i data-lucide="user" class="w-6 h-6 mr-2"></i> Recherche de Joueur
+                </h3>
+                <form id="player-search-form" class="flex flex-col md:flex-row gap-4">
+                    <input type="text" id="playerNameInput" placeholder="Entrez le nom exact du joueur..." required class="custom-input flex-grow">
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">
+                        <i data-lucide="sword" class="w-5 h-5 inline mr-2"></i> Analyser Joueur
+                    </button>
+                </form>
+                
+                <div id="player-stats-container" class="mt-4">
+                    <p class="text-center text-gray-500 mt-4">Les stats du joueur (PvP, PvE, Récolte) s'afficheront ici.</p>
+                </div>
+            </section>
+
+            <section class="mb-12 p-6 bg-gray-800/80 rounded-xl shadow-lg border border-gray-700/50">
+                <h3 class="text-2xl font-bold text-yellow-300 mb-4 flex items-center">
+                    <i data-lucide="shield" class="w-6 h-6 mr-2"></i> Recherche de Guilde
+                </h3>
+                <form id="guild-search-form" class="flex flex-col md:flex-row gap-4">
+                    <input type="text" id="guildNameInput" placeholder="Entrez le nom exact de la guilde..." required class="custom-input flex-grow">
+                    <button type="submit" class="bg-yellow-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-yellow-700 transition">
+                        <i data-lucide="trophy" class="w-5 h-5 inline mr-2"></i> Analyser Guilde
+                    </button>
+                </form>
+                
+                <div id="guild-stats-container" class="mt-4">
+                    <p class="text-center text-gray-500 mt-4">Les stats de la guilde (Kill Fame, Membres, K/D) s'afficheront ici.</p>
+                </div>
+            </section>
+
+
+            <section>
+                <h2 class="text-3xl font-bold text-blue-400 mb-6 flex items-center">
+                    <i data-lucide="trophy" class="w-7 h-7 mr-3"></i> Classements Officiels (Europe)
+                </h2>
+                
+                <div id="leaderboard-content">
+                    </div>
+            </section>
+            
+        </div>
+    </main>
+    
+    <div id="notification-container" class="fixed bottom-4 right-4 z-50 space-y-3">
+    </div>
+
+</body>
+</html>
