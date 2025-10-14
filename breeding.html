@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Albion | Rentabilité Élevage</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Configuration de la police Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #12121e; /* Fond très sombre */
+            color: #e4e4e7; /* Texte clair */
+        }
+        /* Style pour une barre de défilement propre */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background-color: #1a1a2e; }
+        
+        .custom-input {
+            background-color: #1a1a2e;
+            border: 1px solid #3f3f46;
+            color: #e4e4e7;
+            padding: 6px 10px;
+            border-radius: 6px;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        .custom-input:focus {
+            border-color: #3b82f6;
+            outline: none;
+        }
+        .header-section {
+            background-color: #1a1a2e;
+            padding: 1rem 0;
+            border-bottom: 1px solid #3f3f46;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .data-table th, .data-table td {
+            padding: 8px 12px;
+            white-space: nowrap; 
+        }
+        .data-table th {
+            background-color: #1a1a2e;
+            border-bottom: 2px solid #2d3748;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.65rem; 
+            letter-spacing: 0.05em; 
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #1a1a2e;
+        }
+        .data-table tr:hover {
+            background-color: #25283f;
+        }
+        .data-table .input-cell input {
+            padding: 4px 6px;
+            background-color: #1a1a2e;
+            border: 1px solid #3f3f46;
+            border-radius: 4px;
+            width: 120px; 
+            text-align: right;
+            color: #e4e4e7;
+        }
+        .profit-pos { color: #4ade80; } 
+        .profit-neg { color: #f87171; } 
+        
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: #1a1a2e; 
+            z-index: 20;
+            border-right: 1px solid #2d3748; 
+        }
+        .data-table tr:hover .sticky-col {
+            background-color: #25283f;
+        }
+        
+        /* Styles pour la modale */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: #1a1a2e;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+
+    <script>
+        // --- CONSTANTES ET DONNÉES DE BASE ---
+        const cities = ["Repos d'Arthur", "Brécilien", "Veille-aux-Ponts", "Portail de Veille-aux-Ponts", "Caerleon", "Croix de Forêt", "Fort Sterling", "Portail de Fort Sterling", "Croix d'Hauteroche", "Lymhurst", "Portail de Lymhurst", "Martlock", "Portail de Martlock", "Repos de Merlyn", "Repos de Morgana", "Croix de Montagne", "Croix de Steppe", "Croix de Marais", "Thetford", "Portail de Thetford"];
+        
+        // Liste des Nourritures pour l'élevage 
+        const FOOD_ITEMS = {
+            'T1_CARROT': { name: "Carotte", tier: 1, id: 'T1_CARROT', type: 'plants' }, 
+            'T2_BEAN': { name: "Haricot", tier: 2, id: 'T2_BEAN', type: 'plants' },
+            'T3_WHEAT': { name: "Blé", tier: 3, id: 'T3_WHEAT', type: 'plants' },
+            'T4_TURNIP': { name: "Navet", tier: 4, id: 'T4_TURNIP', type: 'plants' },
+            'T5_CABBAGE': { name: "Chou", tier: 5, id: 'T5_CABBAGE', type: 'plants' },
+            'T6_POTATO': { name: "Pomme de Terre", tier: 6, id: 'T6_POTATO', type: 'plants' },
+            'T7_CORN': { name: "Maïs", tier: 7, id: 'T7_CORN', type: 'plants' }, 
+            'T8_PUMPKIN': { name: "Citrouille", tier: 8, id: 'T8_PUMPKIN', type: 'plants' },
+            'MEAT_GENERIC': { name: "Viande (Générique)", tier: 0, id: 'T4_MEAT', type: 'meat' }, // Utilisé pour les Bêtes
+            'CHOCOLATE': { name: "Chocolat", tier: 0, id: 'T8_ARTEFACT_WILD_CHOCOLATE_BUNNY_EGG', type: 'chocolate' } // Cas spécial T8
+        };
+
+        // Fonction utilitaire pour obtenir les infos de nourriture
+        const getFoodInfo = (foodId) => FOOD_ITEMS[foodId] || FOOD_ITEMS['T1_CARROT'];
+        
+        // Calcule l'ID de la culture (T-2) pour les montures/bêtes de type 'plants'
+        const getPlantFoodIdByTier = (tier) => {
+            if (tier <= 3) return 'T1_CARROT';
+            if (tier === 4) return 'T2_BEAN';
+            if (tier === 5) return 'T3_WHEAT';
+            if (tier === 6) return 'T4_TURNIP';
+            if (tier === 7) return 'T5_CABBAGE';
+            if (tier === 8) return 'T6_POTATO';
+            return 'T1_CARROT';
+        };
+
+        // Calcul des unités de nourriture pour les Montures/Bêtes basées sur le taux par 44h
+        const calculateFoodUnits = (growth_h, food_per_44h) => (growth_h / 44) * food_per_44h;
+
+        // Structure de données de base des animaux (Quantités de Nourriture et Rendements mis à jour)
+        const ANIMAL_DATA = [
+            // Tier 3 - Animaux de ferme
+            { name: "Poussin", tier: 3, food_id: 'T3_WHEAT', food_units: 9, grown_name: "Poulet", baby_id: "T3_FARM_CHICKEN_BABY", grown_id: "T3_ANIMAL_CHICKEN_GROWN", base_return: 0.60, growth_h: 44, diet_type: 'plants', parent_name: "Poulet Adulte", parent_drop: "Inconnu (60% taux de retour)" },
+            // Tier 3 - Montures/Bêtes (T3 utilise T1 Carotte)
+            { name: "Poulain de Novice", tier: 3, food_id: getPlantFoodIdByTier(3), food_units: calculateFoodUnits(44, 10), grown_name: "Cheval de Novice", baby_id: "T3_FARM_HORSE_BABY", grown_id: "T3_MOUNT_HORSE", base_return: 0.84, growth_h: 44, diet_type: 'plants', parent_name: "Cheval de Novice Adulte", parent_drop: "Inconnu (84% taux de retour)" },
+            { name: "Veau de Novice", tier: 3, food_id: getPlantFoodIdByTier(3), food_units: calculateFoodUnits(44, 10), grown_name: "Bœuf de Novice", baby_id: "T3_FARM_OX_BABY", grown_id: "T3_MOUNT_BULL", base_return: 0.84, growth_h: 44, diet_type: 'plants', parent_name: "Bœuf de Novice Adulte", parent_drop: "Inconnu (84% taux de retour)" },
+            
+            // Tier 4 - Animaux de ferme
+            { name: "Chevreau", tier: 4, food_id: 'T4_TURNIP', food_units: 9, grown_name: "Chèvre", baby_id: "T4_FARM_GOAT_BABY", grown_id: "T4_ANIMAL_GOAT_GROWN", base_return: 0.7333, growth_h: 44, diet_type: 'plants', parent_name: "Chèvre Adulte", parent_drop: "Inconnu (73.33% taux de retour)" },
+            // Tier 4 - Montures/Bêtes (T4 utilise T2 Haricot)
+            { name: "Faon d'Apprenti", tier: 4, food_id: getPlantFoodIdByTier(4), food_units: calculateFoodUnits(92, 14), grown_name: "Cerf Géant Apprivoisé d'Apprenti", baby_id: "T4_FARM_GIANTSTAG_BABY", grown_id: "T4_FARM_GIANTSTAG_GROWN", base_return: 0.35, growth_h: 92, diet_type: 'plants', parent_name: "Cerf Géant Apprivoisé (T4+)", parent_drop: "Faon d'Apprenti" },
+            { name: "Poulain d'Apprenti", tier: 4, food_id: getPlantFoodIdByTier(4), food_units: calculateFoodUnits(92, 14), grown_name: "Cheval d'Apprenti", baby_id: "T4_FARM_HORSE_BABY", grown_id: "T4_MOUNT_HORSE", base_return: 0.7867, growth_h: 92, diet_type: 'plants', parent_name: "Cheval d'Apprenti Adulte", parent_drop: "Inconnu (78.67% taux de retour)" },
+            { name: "Veau d'Apprenti", tier: 4, food_id: getPlantFoodIdByTier(4), food_units: calculateFoodUnits(92, 14), grown_name: "Bœuf d'Apprenti", baby_id: "T4_FARM_OX_BABY", grown_id: "T4_MOUNT_OX", base_return: 0.7867, growth_h: 92, diet_type: 'plants', parent_name: "Bœuf d'Apprenti Adulte", parent_drop: "Inconnu (78.67% taux de retour)" },
+            
+            // Tier 5 - Animaux de ferme
+            { name: "Oison", tier: 5, food_id: 'T5_CABBAGE', food_units: 9, grown_name: "Oie", baby_id: "T5_FARM_GOOSE_BABY", grown_id: "T5_ANIMAL_GOOSE_GROWN", base_return: 0.80, growth_h: 44, diet_type: 'plants', parent_name: "Oie Adulte", parent_drop: "Inconnu (80% taux de retour)" },
+            // Tier 5 - Montures/Bêtes (T5 utilise T3 Blé ou Viande)
+            { name: "Poulain d'Expert", tier: 5, food_id: getPlantFoodIdByTier(5), food_units: calculateFoodUnits(140, 28), grown_name: "Cheval d'Expert", baby_id: "T5_FARM_HORSE_BABY", grown_id: "T5_MOUNT_HORSE", base_return: 0.7867, growth_h: 140, diet_type: 'plants', parent_name: "Cheval d'Expert Adulte", parent_drop: "Inconnu (78.67% taux de retour)" },
+            { name: "Veau d'Expert", tier: 5, food_id: getPlantFoodIdByTier(5), food_units: calculateFoodUnits(140, 28), grown_name: "Bœuf d'Expert", baby_id: "T5_FARM_OX_BABY", grown_id: "T5_MOUNT_OX", base_return: 0.7867, growth_h: 140, diet_type: 'plants', parent_name: "Bœuf d'Expert Adulte", parent_drop: "Inconnu (78.67% taux de retour)" },
+            { name: "Petit Moabird", tier: 5, food_id: getPlantFoodIdByTier(5), food_units: calculateFoodUnits(140, 28), grown_name: "Moabird Apprivoisé", baby_id: "T5_FARM_MOABIRD_FW_BRIDGEWATCH_BABY", grown_id: "T5_FARM_MOABIRD_FW_BRIDGEWATCH_GROWN", base_return: 0.30, growth_h: 140, diet_type: 'plants', parent_name: "Moabird Parent", parent_drop: "T5 Bête (Drop Rare)" },
+            { name: "Agneau de Bighorn", tier: 5, food_id: getPlantFoodIdByTier(5), food_units: calculateFoodUnits(140, 28), grown_name: "Bélier Bighorn Apprivoisé", baby_id: "T5_FARM_RAM_FW_MARTLOCK_BABY", grown_id: "T5_FARM_RAM_FW_MARTLOCK_GROWN", base_return: 0.30, growth_h: 140, diet_type: 'plants', parent_name: "Bélier Bighorn Parent", parent_drop: "T5 Bête (Drop Rare)" },
+            // Viande T5
+            { name: "Petit Griffes-rapides", tier: 5, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(140, 26), grown_name: "Griffes-rapides Apprivoisé", baby_id: "T5_FARM_COUGAR_BABY", grown_id: "T5_FARM_COUGAR_GROWN", base_return: 0.30, growth_h: 140, diet_type: 'meat', parent_name: "Sabretooth Tiger (T5+)", parent_drop: "Swiftclaw Cub" },
+            { name: "Petit Ours Polaire", tier: 5, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(140, 26), grown_name: "Ours Polaire Apprivoisé", baby_id: "T5_FARM_DIREBEAR_FW_FORTSTERLING_BABY", grown_id: "T5_FARM_DIREBEAR_FW_FORTSTERLING_GROWN", base_return: 0.30, growth_h: 140, diet_type: 'meat', parent_name: "Ours Polaire Parent", parent_drop: "T5 Bête (Drop Rare)" },
+            { name: "Marcassin Sauvage", tier: 5, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(140, 26), grown_name: "Sanglier Sauvage Apprivoisé", baby_id: "T5_FARM_DIREBOAR_FW_LYMHURST_BABY", grown_id: "T5_FARM_DIREBOAR_FW_LYMHURST_GROWN", base_return: 0.30, growth_h: 140, diet_type: 'meat', parent_name: "Sanglier Sauvage Parent", parent_drop: "T5 Bête (Drop Rare)" },
+            { name: "Petit Salamandre des Marais", tier: 5, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(140, 26), grown_name: "Salamandre des Marais Apprivoisée", baby_id: "T5_FARM_SWAMPDRAGON_FW_THETFORD_BABY", grown_id: "T5_FARM_SWAMPDRAGON_FW_THETFORD_GROWN", base_return: 0.30, growth_h: 140, diet_type: 'meat', parent_name: "Salamandre Parent", parent_drop: "T5 Bête (Drop Rare)" },
+
+
+            // Tier 6 - Animaux de ferme
+            { name: "Agneau", tier: 6, food_id: 'T6_POTATO', food_units: 9, grown_name: "Mouton", baby_id: "T6_FARM_SHEEP_BABY", grown_id: "T6_ANIMAL_SHEEP_GROWN", base_return: 0.8667, growth_h: 44, diet_type: 'plants', parent_name: "Mouton Adulte", parent_drop: "Inconnu (86.67% taux de retour)" },
+            // Tier 6 - Montures/Bêtes (T6 utilise T4 Navet ou Viande)
+            { name: "Faon de Maître", tier: 6, food_id: getPlantFoodIdByTier(6), food_units: calculateFoodUnits(188, 63), grown_name: "Cerf Géant Apprivoisé de Maître", baby_id: "T6_FARM_GIANTSTAG_BABY", grown_id: "T6_FARM_GIANTSTAG_GROWN", base_return: 0.24, growth_h: 188, diet_type: 'plants', parent_name: "Cerf Géant Apprivoisé (T4+)", parent_drop: "Faon de Maître" },
+            { name: "Poulain de Maître", tier: 6, food_id: getPlantFoodIdByTier(6), food_units: calculateFoodUnits(188, 63), grown_name: "Cheval de Maître", baby_id: "T6_FARM_HORSE_BABY", grown_id: "T6_MOUNT_HORSE", base_return: 0.814, growth_h: 188, diet_type: 'plants', parent_name: "Cheval de Maître Adulte", parent_drop: "Inconnu (81.4% taux de retour)" },
+            { name: "Veau de Maître", tier: 6, food_id: getPlantFoodIdByTier(6), food_units: calculateFoodUnits(188, 63), grown_name: "Bœuf de Maître", baby_id: "T6_FARM_OX_BABY", grown_id: "T6_MOUNT_OX", base_return: 0.8104, growth_h: 188, diet_type: 'plants', parent_name: "Bœuf de Maître Adulte", parent_drop: "Inconnu (81.04% taux de retour)" },
+            // Viande T6
+            { name: "Louveteau Loup-sinistre", tier: 6, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(188, 58), grown_name: "Loup-sinistre Apprivoisé", baby_id: "T6_FARM_DIREWOLF_BABY", grown_id: "T6_MOUNT_DIREWOLF", base_return: 0.24, growth_h: 188, diet_type: 'meat', parent_name: "Direwolf (T6+)", parent_drop: "Direwolf Pup" },
+
+
+            // Tier 7 - Animaux de ferme
+            { name: "Porcelet", tier: 7, food_id: 'T7_CORN', food_units: 9, grown_name: "Cochon", baby_id: "T7_FARM_PIG_BABY", grown_id: "T7_ANIMAL_PIG_GROWN", base_return: 0.9111, growth_h: 44, diet_type: 'plants', parent_name: "Cochon Adulte", parent_drop: "Inconnu (91.11% taux de retour)" },
+            // Tier 7 - Montures/Bêtes (T7 utilise T5 Chou ou Viande)
+            { name: "Poulain Grand-Maître", tier: 7, food_id: getPlantFoodIdByTier(7), food_units: calculateFoodUnits(236, 151), grown_name: "Cheval Grand-Maître", baby_id: "T7_FARM_HORSE_BABY", grown_id: "T7_MOUNT_HORSE", base_return: 0.842, growth_h: 236, diet_type: 'plants', parent_name: "Cheval Grand-Maître Adulte", parent_drop: "Inconnu (84.2% taux de retour)" },
+            { name: "Veau Grand-Maître", tier: 7, food_id: getPlantFoodIdByTier(7), food_units: calculateFoodUnits(236, 151), grown_name: "Bœuf Grand-Maître", baby_id: "T7_FARM_OX_BABY", grown_id: "T7_MOUNT_OX", base_return: 0.842, growth_h: 236, diet_type: 'plants', parent_name: "Bœuf Grand-Maître Adulte", parent_drop: "Inconnu (84.2% taux de retour)" },
+            // Viande T7
+            { name: "Marcassin Sanglier-sinistre", tier: 7, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(236, 139), grown_name: "Sanglier-sinistre Apprivoisé", baby_id: "T7_FARM_DIREBOAR_BABY", grown_id: "T7_MOUNT_DIREBOAR", base_return: 0.20, growth_h: 236, diet_type: 'meat', parent_name: "Direboar (T7+)", parent_drop: "Direboar Piglet" },
+            { name: "Petit Dragon des Marais", tier: 7, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(236, 139), grown_name: "Dragon des Marais Apprivoisé", baby_id: "T7_FARM_SWAMPDRAGON_BABY", grown_id: "T7_MOUNT_SWAMPDRAGON", base_return: 0.20, growth_h: 236, diet_type: 'meat', parent_name: "Swamp Dragon (T7+)", parent_drop: "Swamp Dragon Pup" },
+
+
+            // Tier 8 - Animaux de ferme
+            { name: "Veau", tier: 8, food_id: 'T8_PUMPKIN', food_units: 9, grown_name: "Vache", baby_id: "T8_FARM_COW_BABY", grown_id: "T8_ANIMAL_COW_GROWN", base_return: 0.9333, growth_h: 44, diet_type: 'plants', parent_name: "Vache Adulte", parent_drop: "Inconnu (93.33% taux de retour)" },
+            // Tier 8 - Montures/Bêtes (T8 utilise T6 Pomme de Terre, Viande ou Chocolat)
+            { name: "Poulain Aîné", tier: 8, food_id: getPlantFoodIdByTier(8), food_units: calculateFoodUnits(284, 376), grown_name: "Cheval Aîné", baby_id: "T8_FARM_HORSE_BABY", grown_id: "T8_MOUNT_HORSE", base_return: 0.8736, growth_h: 284, diet_type: 'plants', parent_name: "Cheval Aîné Adulte", parent_drop: "Inconnu (87.36% taux de retour)" },
+            { name: "Veau de Mammouth", tier: 8, food_id: getPlantFoodIdByTier(8), food_units: calculateFoodUnits(284, 376), grown_name: "Mammouth Apprivoisé", baby_id: "T8_FARM_MAMMOTH_BABY", grown_id: "T8_MOUNT_MAMMOTH", base_return: 0.15, growth_h: 284, diet_type: 'plants', parent_name: "Mammoth / Old White", parent_drop: "Mammoth Calf" },
+            { name: "Veau Aîné", tier: 8, food_id: getPlantFoodIdByTier(8), food_units: calculateFoodUnits(284, 376), grown_name: "Bœuf Aîné", baby_id: "T8_FARM_OX_BABY", grown_id: "T8_MOUNT_OX", base_return: 0.8736, growth_h: 284, diet_type: 'plants', parent_name: "Bœuf Aîné Adulte", parent_drop: "Inconnu (87.36% taux de retour)" },
+            // Viande T8
+            { name: "Ourson Ours-sinistre", tier: 8, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(284, 347), grown_name: "Ours-sinistre Apprivoisé", baby_id: "T8_FARM_DIREBEAR_BABY", grown_id: "T8_MOUNT_DIREBEAR", base_return: 0.15, growth_h: 284, diet_type: 'meat', parent_name: "Direbear (T8+)", parent_drop: "Direbear Cub" },
+            { name: "Louveteau Loup-fantôme", tier: 8, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(284, 347), grown_name: "Loup-fantôme Apprivoisé", baby_id: "T8_FARM_DIREWOLF_BABY", grown_id: "T8_FARM_DIREWOLF_GROWN", base_return: 0.15, growth_h: 284, diet_type: 'meat', parent_name: "Ghost Wolf (T8+)", parent_drop: "Ghostwolf Pup" },
+            // Cas spéciaux T8
+            { name: "Vibrant Spring Cottontail Egg", tier: 8, food_id: 'CHOCOLATE', food_units: calculateFoodUnits(44, 500), grown_name: "Lapin de Pâques", baby_id: "T8_FARM_FANTASY_RABBIT_BABY", grown_id: "T8_MOUNT_EASTER_RABBIT", base_return: 0.10, growth_h: 44, diet_type: 'chocolate', parent_name: "Drop de l'événement", parent_drop: "Egg" },
+            { name: "Eerie Cottontail Egg", tier: 8, food_id: 'MEAT_GENERIC', food_units: calculateFoodUnits(44, 380), grown_name: "Lapin Étrange", baby_id: "T8_FARM_FANTASY_RABBIT_BABY", grown_id: "T8_MOUNT_EERIE_RABBIT", base_return: 0.10, growth_h: 44, diet_type: 'meat', parent_name: "Drop de l'événement", parent_drop: "Egg" },
+        ];
+        
+        // État de l'application
+        let appState = {
+            sellTax: 0.10, 
+            setupFee: 0.00, 
+            isPremiumActive: false, 
+            animalPrices: {}, 
+            selectedCity: 'Bridgewatch'
+        };
+
+        // --- FONCTIONS UTILITAIRES ---
+
+        const formatNumber = (num, decimals = 0) => {
+            if (num === null || isNaN(num)) return 'N/A';
+            return num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+        };
+        
+        // Affiche la modale d'information
+        const showInfoModal = (animalName) => {
+            const animal = ANIMAL_DATA.find(a => a.name === animalName);
+            if (!animal) return;
+
+            const food = getFoodInfo(animal.food_id);
+            const foodNameDisplay = animal.diet_type === 'plants' ? `${food.name} (T${food.tier})` : (animal.diet_type === 'meat' ? 'Viande (Générique)' : food.name);
+
+
+            const modalTitle = `Informations sur le ${animal.name} (T${animal.tier})`;
+            const modalBody = `
+                <div class="space-y-3 text-gray-300">
+                    <p class="flex items-center">
+                        <strong class="text-blue-400 mr-2">Nourriture requise :</strong> ${formatNumber(animal.food_units, 2)} unités de ${foodNameDisplay}.
+                        <img src="https://render.albiononline.com/v1/item/${food.id}.png?size=24" class="inline w-6 h-6 ml-2 rounded bg-gray-700" loading="lazy" alt="${food.name}" onerror="this.onerror=null;this.src='https://placehold.co/24x24/3f3f46/3f3f46?text=?';">
+                    </p>
+                    <p>
+                        <strong class="text-yellow-400">Taux de Retour de Bébé (Base) :</strong> ${formatNumber(animal.base_return * 100, 2)}%
+                    </p>
+                    <p>
+                        <strong class="text-white">Adulte Élevé :</strong> ${animal.grown_name}
+                        <img src="https://render.albiononline.com/v1/item/${animal.grown_id}.png?size=24" class="inline w-6 h-6 ml-2 rounded bg-gray-700" onerror="this.onerror=null;this.src='https://placehold.co/24x24/3f3f46/3f3f46?text=?';" loading="lazy" alt="${animal.grown_name}">
+                    </p>
+                    <hr class="border-gray-700">
+                    <h4 class="text-md font-semibold text-white">Informations d'obtention du bébé :</h4>
+                    <p>
+                        <strong class="text-gray-400">Parent qui drop le bébé :</strong> ${animal.parent_name}
+                    </p>
+                    <p>
+                        <strong class="text-gray-400">Bébé lâché (Drop) :</strong> ${animal.parent_drop}
+                    </p>
+                </div>
+            `;
+
+            document.getElementById('modal-title').textContent = modalTitle;
+            document.getElementById('modal-body').innerHTML = modalBody;
+            document.getElementById('infoModal').style.display = 'flex';
+        };
+
+        // Ferme la modale
+        const closeInfoModal = () => {
+            document.getElementById('infoModal').style.display = 'none';
+        };
+
+        window.showInfoModal = showInfoModal; 
+        window.closeInfoModal = closeInfoModal;
+
+        // --- LOGIQUE DE CALCUL ---
+
+        const calculateProfitability = (animal) => {
+            const babyPrice = parseFloat(appState.animalPrices[`${animal.name}-baby-price`] || 0);
+            const grownPrice = parseFloat(appState.animalPrices[`${animal.name}-grown-price`] || 0);
+            const returnPrice = parseFloat(appState.animalPrices[`${animal.name}-return-price`] || 0);
+            const foodPricePerUnit = parseFloat(appState.animalPrices[`${animal.name}-food-price`] || 0);
+            
+            const sellTaxRate = appState.sellTax;
+            
+            const totalFoodCost = animal.food_units * foodPricePerUnit;
+            const totalCost = babyPrice + totalFoodCost;
+
+            let grownRevenueNet;
+            let returnRate;
+            let growthFactor;
+
+            if (appState.isPremiumActive) {
+                grownRevenueNet = grownPrice * (1 - sellTaxRate); 
+                returnRate = animal.base_return;
+                growthFactor = 1;
+            } else {
+                grownRevenueNet = grownPrice; 
+                returnRate = 0;
+                growthFactor = 2;
+            }
+            
+            const growthTime = animal.growth_h * growthFactor;
+
+            const returnRevenue = returnPrice * returnRate;
+            const totalRevenue = grownRevenueNet + returnRevenue;
+            const profitGross = totalRevenue - totalCost;
+            
+            const percentProfit = totalCost > 0 ? (profitGross / totalCost) * 100 : 0;
+            
+            return {
+                totalCost,
+                totalFoodCost,
+                growthTime,
+                returnRate, 
+                profitGross,
+                percentProfit
+            };
+        };
+
+        // --- RENDU ET GESTION D'ÉTAT ---
+
+        const formatProfit = (value) => {
+            const class_name = value >= 0 ? 'profit-pos' : 'profit-neg';
+            return `<span class="${class_name}">${formatNumber(value)}</span>`;
+        };
+
+        const getFoodDisplay = (animal) => {
+            const food = getFoodInfo(animal.food_id);
+            let name, imageId;
+
+            if (animal.diet_type === 'meat') {
+                name = 'Viande';
+                imageId = 'T4_MEAT'; 
+            } else if (animal.diet_type === 'chocolate') {
+                name = 'Chocolat';
+                imageId = food.id;
+            } else {
+                // plants
+                name = food.name;
+                imageId = food.id;
+            }
+
+            const tierDisplay = animal.diet_type === 'plants' ? `(T${food.tier})` : '';
+
+            return `
+                <img src="https://render.albiononline.com/v1/item/${imageId}.png?size=32" class="w-8 h-8 mx-auto rounded bg-gray-700" onerror="this.onerror=null;this.src='https://placehold.co/32x32/3f3f46/3f3f46?text=?';" loading="lazy" alt="${name}">
+                <span class="block text-xs text-gray-400">${name} ${tierDisplay}</span>
+            `;
+        };
+        
+        const renderTable = () => {
+            const container = document.getElementById('breeding-table-body');
+            let html = '';
+
+            ANIMAL_DATA.forEach(animal => {
+                const keyPrefix = animal.name.replace(/\s/g, '-');
+
+                if (typeof appState.animalPrices[`${keyPrefix}-baby-price`] === 'undefined') {
+                    appState.animalPrices[`${keyPrefix}-baby-price`] = 0;
+                    appState.animalPrices[`${keyPrefix}-grown-price`] = 0;
+                    appState.animalPrices[`${keyPrefix}-return-price`] = 0;
+                    appState.animalPrices[`${keyPrefix}-food-price`] = 0; 
+                }
+
+                const results = calculateProfitability(animal);
+                const premiumStatusClass = appState.isPremiumActive ? 'bg-green-900/50' : 'bg-red-900/50';
+                const displayReturnRate = appState.isPremiumActive ? `${(results.returnRate * 100).toFixed(2)}%` : 'N/A';
+                
+                html += `
+                    <tr id="row-${keyPrefix}" class="hover:bg-gray-700 transition duration-150">
+                        
+                        <td class="sticky-col text-white font-medium text-left flex items-center py-2">
+                            <button onclick="showInfoModal('${animal.name}')" class="flex-shrink-0 mr-3 p-1 rounded-full bg-blue-600 hover:bg-blue-500 transition duration-150" title="Informations détaillées">
+                                <i data-lucide="info" class="w-4 h-4 text-white"></i>
+                            </button>
+                            <img src="https://render.albiononline.com/v1/item/${animal.baby_id}.png?size=40" class="w-10 h-10 min-w-10 mr-2 rounded bg-gray-700" onerror="this.onerror=null;this.src='https://placehold.co/40x40/3f3f46/3f3f46?text=?';" loading="lazy" alt="${animal.name}">
+                            <div>
+                                <span class="block">${animal.name} (T${animal.tier})</span>
+                                <span class="text-xs text-blue-400">${animal.grown_name}</span>
+                            </div>
+                        </td>
+                        
+                        <td class="input-cell"><input type="number" data-key="${keyPrefix}-baby-price" value="${appState.animalPrices[`${keyPrefix}-baby-price`]}" oninput="updatePrice(this)"></td>
+                        <td>${getFoodDisplay(animal)}</td>
+                        <td>${formatNumber(animal.food_units, 2)}</td>
+                        <td class="input-cell"><input type="number" data-key="${keyPrefix}-food-price" value="${appState.animalPrices[`${keyPrefix}-food-price`]}" oninput="updatePrice(this)"></td>
+                        <td class="text-yellow-400 font-semibold">${formatNumber(results.totalFoodCost)}</td>
+
+                        <td class="input-cell">
+                            <div class="flex items-center justify-end">
+                                <img src="https://render.albiononline.com/v1/item/${animal.grown_id}.png?size=40" class="w-8 h-8 mr-1 rounded bg-gray-700" onerror="this.onerror=null;this.src='https://placehold.co/40x40/3f3f46/3f3f46?text=?';" loading="lazy" alt="${animal.grown_name}">
+                                <input type="number" data-key="${keyPrefix}-grown-price" value="${appState.animalPrices[`${keyPrefix}-grown-price`]}" oninput="updatePrice(this)">
+                            </div>
+                        </td>
+                        <td class="input-cell"><input type="number" data-key="${keyPrefix}-return-price" value="${appState.animalPrices[`${keyPrefix}-return-price`]}" oninput="updatePrice(this)"></td>
+                        <td>${displayReturnRate}</td>
+                        
+                        <td class="${premiumStatusClass} text-gray-400">${results.growthTime}h</td>
+                        <td class="${premiumStatusClass} font-bold">${formatProfit(results.profitGross)}</td>
+                        <td class="${premiumStatusClass} ${results.percentProfit >= 0 ? 'profit-pos' : 'profit-neg'} font-bold">${results.percentProfit.toFixed(1)}%</td>
+                    </tr>
+                `;
+            });
+
+            container.innerHTML = html;
+        };
+
+        const updatePrice = (inputElement) => {
+            const key = inputElement.getAttribute('data-key');
+            appState.animalPrices[key] = inputElement.value ? parseFloat(inputElement.value) : 0;
+            
+            localStorage.setItem('breeding_prices', JSON.stringify(appState.animalPrices));
+            localStorage.setItem('breeding_settings', JSON.stringify({ 
+                sellTax: appState.sellTax, 
+                setupFee: appState.setupFee, 
+                isPremiumActive: appState.isPremiumActive
+            }));
+            renderTable();
+        };
+        
+        const updateSetting = (key, inputElement) => {
+            let value;
+            if (inputElement.type === 'checkbox') {
+                value = inputElement.checked;
+                appState[key] = value;
+            } else {
+                value = parseFloat(inputElement.value);
+                if (!isNaN(value)) {
+                    if (key === 'sellTax' || key === 'setupFee') {
+                        appState[key] = value / 100; 
+                    } else {
+                        appState[key] = 0; 
+                    }
+                } else {
+                    appState[key] = 0; 
+                }
+            }
+
+            localStorage.setItem('breeding_settings', JSON.stringify({ 
+                sellTax: appState.sellTax, 
+                setupFee: appState.setupFee, 
+                isPremiumActive: appState.isPremiumActive
+            }));
+            renderTable();
+        };
+
+        // --- Fonctions d'Affichage de la Navigation ---
+        const renderHeader = (activePage) => {
+            const pages = [
+                { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat' },
+                { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché' },
+                { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage', active: activePage === 'Breeding' },
+            ];
+
+            return `
+                <div class="header-section">
+                    <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+                            <div class="flex-shrink-0 text-2xl font-bold text-blue-400">
+                                Tools Albion <span class="text-gray-400 text-sm font-normal ml-2"></span>
+                            </div>
+                            
+                            <div class="flex space-x-2 sm:space-x-4">
+                                ${pages.map(page => `
+                                    <a href="${page.file}" 
+                                        class="px-3 py-2 rounded-lg text-sm font-medium transition duration-150 ease-in-out flex items-center
+                                        ${page.active 
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50' 
+                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'}"
+                                    >
+                                        <i data-lucide="${page.icon}" class="w-4 h-4 mr-1 sm:mr-2"></i>
+                                        <span class="hidden sm:inline">${page.label}</span>
+                                    </a>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+        
+        // Initialisation de l'application
+        const initApp = () => {
+            document.getElementById('header-placeholder').innerHTML = renderHeader('Breeding');
+            
+            const savedPrices = localStorage.getItem('breeding_prices');
+            if (savedPrices) {
+                appState.animalPrices = JSON.parse(savedPrices, (key, value) => {
+                    if (key && (key.includes('-price') || key.includes('-tax')) && !isNaN(parseFloat(value))) {
+                        return parseFloat(value);
+                    }
+                    return value;
+                });
+            }
+            const savedSettings = localStorage.getItem('breeding_settings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                appState.sellTax = settings.sellTax !== undefined ? settings.sellTax : appState.sellTax;
+                appState.setupFee = settings.setupFee !== undefined ? settings.setupFee : appState.setupFee;
+                appState.isPremiumActive = settings.isPremiumActive !== undefined ? settings.isPremiumActive : appState.isPremiumActive;
+            }
+
+            document.getElementById('sell-tax').value = (appState.sellTax * 100).toFixed(1);
+            document.getElementById('setup-fee').value = (appState.setupFee * 100).toFixed(1);
+            document.getElementById('is-premium-active').checked = appState.isPremiumActive;
+            
+            document.getElementById('city-select-breeding').innerHTML = cities.map(city => `<option value="${city}" ${city === appState.selectedCity ? 'selected' : ''}>${city}</option>`).join('');
+
+            renderTable();
+
+            if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+        };
+
+        window.onload = initApp;
+
+    </script>
+</head>
+<body class="min-h-screen">
+
+    <div id="header-placeholder"></div>
+
+    <main class="mx-auto p-4 sm:p-6 lg:p-8">
+        <h1 class="text-3xl font-extrabold text-white mb-6 flex items-center">
+            <i data-lucide="egg" class="w-7 h-7 mr-3 text-blue-400"></i> Rentabilité de l'Élevage
+        </h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            
+            <div class="lg:col-span-2 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+                <h2 class="text-xl font-semibold text-white mb-3 flex items-center">
+                    <i data-lucide="settings" class="w-5 h-5 mr-2 text-blue-400"></i> Paramètres
+                </h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="city-select-breeding" class="block text-xs font-medium text-gray-400 mb-1">Ville (pour référence):</label>
+                        <select id="city-select-breeding" class="custom-input">
+                            </select>
+                    </div>
+                    <div class="flex items-center pt-5">
+                        <input type="checkbox" id="is-premium-active" onchange="updateSetting('isPremiumActive', this)" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+                        <label for="is-premium-active" class="ml-2 text-sm font-medium text-white">Abonnement Premium Actif</label>
+                    </div>
+
+                    <div>
+                        <label for="sell-tax" class="block text-xs font-medium text-gray-400 mb-1">Taxe de Vente Marché (%):</label>
+                        <input type="number" id="sell-tax" oninput="updateSetting('sellTax', this)" class="custom-input" min="0" max="100" step="0.1" value="10.0">
+                    </div>
+                    <div>
+                        <label for="setup-fee" class="block text-xs font-medium text-gray-400 mb-1">Frais d'Ordre (%):</label>
+                        <input type="number" id="setup-fee" oninput="updateSetting('setupFee', this)" class="custom-input" min="0" max="100" step="0.1" value="0.0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+                <h2 class="text-xl font-semibold text-white mb-3 flex items-center">
+                    <i data-lucide="shield" class="w-5 h-5 mr-2 text-yellow-400"></i> Hypothèses / Règle du Premium
+                </h2>
+                <ul class="text-sm text-gray-400 space-y-1">
+                    <li class="flex items-start"><i data-lucide="minus" class="w-4 h-4 min-w-4 mr-2 mt-1 text-red-500"></i> **Sans Premium** : Croissance **x2**, Taux de Retour du Bébé de **0%**, **Pas de Taxe** de Marché (simulé).</li>
+                    <li class="flex items-start"><i data-lucide="plus" class="w-4 h-4 min-w-4 mr-2 mt-1 text-green-500"></i> **Avec Premium** : Croissance **x1** (normale), Taux de Retour du Bébé **actif**, Taxe de Marché **appliquée**.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 overflow-x-auto">
+            <h2 class="text-xl font-semibold text-white mb-3 flex items-center">
+                <i data-lucide="layout-grid" class="w-5 h-5 mr-2 text-blue-400"></i> Rentabilité par Cycle (Achat -> Vente)
+            </h2>
+            <p class="text-sm text-gray-400 mb-4">
+                La rentabilité est calculée par cycle de croissance complet. Cliquez sur le bouton **"i"** pour voir les détails de la nourriture et du drop. Les **unités de nourriture** et le **type de nourriture** sont maintenant exacts.
+            </p>
+            <table class="w-full data-table text-right text-sm border-collapse">
+                <thead>
+                    <tr class="text-gray-400">
+                        <th rowspan="2" class="sticky-col text-left">Animal</th>
+                        <th colspan="5" class="text-center bg-gray-700/50">Coûts et Nourriture</th>
+                        <th colspan="3" class="text-center bg-gray-700/50">Revenus de la Vente Adulte et Retour</th>
+                        
+                        <th colspan="3" class="text-center bg-blue-900/50">Rentabilité par Cycle</th>
+                    </tr>
+                    <tr class="text-gray-400">
+                        <th class="text-right">Prix Bébé (Silver)</th>
+                        <th>Nourriture (Image)</th> 
+                        <th>Nourriture Nécessaire (Unités)</th> 
+                        <th>Prix Nourriture / Unité (Silver)</th> 
+                        <th>Coût Nourriture (Total)</th>
+
+                        <th class="text-right">Prix Vente Adulte (Silver)</th>
+                        <th class="text-right">Valeur Retour Bébé (Silver)</th>
+                        <th>Taux Retour Bébé</th>
+
+                        <th>Croissance (h)</th>
+                        <th>Profit Brut (Silver)</th>
+                        <th>Profit (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="breeding-table-body">
+                    </tbody>
+            </table>
+        </div>
+
+    </main>
+    
+    <div id="infoModal" class="modal" onclick="closeInfoModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
+                <h3 id="modal-title" class="text-xl font-bold text-white"></h3>
+                <button onclick="closeInfoModal()" class="text-gray-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div id="modal-body">
+                </div>
+        </div>
+    </div>
+
+</body>
+</html>
