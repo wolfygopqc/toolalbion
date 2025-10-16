@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Albion | Routes d'Avalon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #12121e;
+            color: #e4e4e7;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background-color: #1a1a2e; }
+
+        .header-section {
+            background-color: #1a1a2e;
+            padding: 1rem 0;
+            border-bottom: 1px solid #3f3f46;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        
+        /* Nouveaux styles pour les cartes de routes */
+        .zone-tag {
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .zone-black { background-color: #333; color: white; border: 1px solid #555; }
+        .zone-red { background-color: #991b1b; color: white; border: 1px solid #b91c1c; }
+        .zone-yellow { background-color: #a16207; color: white; border: 1px solid #ca8a04; }
+        .zone-blue { background-color: #1d4ed8; color: white; border: 1px solid #2563eb; }
+        .zone-royal { background-color: #166534; color: white; border: 1px solid #16a34a; }
+
+        .path-zone-card {
+            scroll-snap-align: start;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div id="header-placeholder"></div>
+
+    <main class="flex items-center justify-center" style="height: calc(100vh - 80px);">
+        <div class="text-center">
+            <i data-lucide="construct" class="w-24 h-24 mx-auto text-yellow-400"></i>
+            <h1 class="mt-6 text-4xl font-extrabold text-white">Page en développement</h1>
+            <p class="mt-2 text-lg text-gray-400">Cette fonctionnalité est en cours de développement .</p>
+        </div>
+    </main>
+
+    <script>
+        // --- Rendu du Header (Barre de navigation) ---
+        const renderHeader = (activePage) => {
+            const pages = [
+                { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat' },
+                { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché' },
+                { name: 'Gold', icon: 'coins', file: 'gold_prices.html', label: 'Or' },
+                { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage' },
+                { name: 'Timers', icon: 'clock', file: 'timers.html', label: 'Timers' },
+                { name: 'Map', icon: 'map', file: 'map.html', label: 'Carte', active: activePage === 'Map' },
+            ];
+
+            return `
+                <div class="header-section">
+                    <div class="max-w-full 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+                            <div class="flex-shrink-0 text-2xl font-bold text-blue-400">
+                                Tools Albion
+                            </div>
+                            <div class="flex space-x-2 sm:space-x-4">
+                                ${pages.map(page => `
+                                    <a href="${page.file}" 
+                                        class="px-3 py-2 rounded-lg text-sm font-medium transition duration-150 ease-in-out flex items-center
+                                        ${page.active 
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50' 
+                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'}"
+                                    >
+                                        <i data-lucide="${page.icon}" class="w-4 h-4 mr-1 sm:mr-2"></i>
+                                        <span class="hidden sm:inline">${page.label}</span>
+                                    </a>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- Initialisation ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('header-placeholder').innerHTML = renderHeader('Map');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

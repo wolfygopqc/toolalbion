@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Albion | Rentabilité Artisanat (Bois)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Configuration de la police Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #12121e; /* Fond très sombre */
+            color: #e4e4e7; /* Texte clair */
+        }
+        /* Style pour une barre de défilement propre */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background-color: #1a1a2e; }
+
+        .custom-input {
+            background-color: #1a1a2e;
+            border: 1px solid #3f3f46;
+            color: #e4e4e7;
+            padding: 6px 10px;
+            border-radius: 6px;
+            width: 100px; /* Taille fixe pour les prix */
+            text-align: right;
+            transition: all 0.2s;
+        }
+
+        .custom-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px #3b82f6;
+            background-color: #161625;
+        }
+
+        /* Style de tableau amélioré pour la lisibilité */
+        .custom-table th, .custom-table td {
+            padding: 8px 10px; /* Ajusté pour table très large */
+            text-align: left;
+            border-bottom: 1px solid #2d2d44;
+            white-space: nowrap;
+        }
+
+        .custom-table th {
+            background-color: #1a1a2e;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .custom-table tr:hover {
+            background-color: #1a1a2e;
+        }
+
+        .container-scroll {
+            max-height: 80vh;
+            overflow-x: auto; /* Permet le défilement horizontal */
+            overflow-y: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .item-icon {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+    </style>
+
+    <script>
+        // Fonction pour le rendu du header (pour la navigation)
+        const renderHeader = (activePage) => {
+            const pages = [
+                { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat', active: activePage === 'Crafting' },
+                { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché', active: activePage === 'Market' },
+                { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage', active: activePage === 'Breeding' },
+            ];
+
+            return `
+                <header class="bg-gray-900 border-b border-gray-700 sticky top-0 z-50">
+                    <div class="max-w-full 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+                            <div class="flex items-center">
+                                <a href="index.html" class="text-2xl font-bold text-blue-400 hover:text-blue-300 transition duration-150">Tool Albion</a>
+                            </div>
+                            <nav class="flex space-x-4">
+                                ${pages.map(page => `
+                                    <a href="${page.file}" class="px-3 py-2 rounded-md text-sm font-medium ${page.active ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'} transition duration-150">
+                                        <i data-lucide="${page.icon}" class="w-4 h-4 inline-block mr-1 -mt-0.5"></i>
+                                        ${page.label}
+                                    </a>
+                                `).join('')}
+                            </nav>
+                        </div>
+                    </div>
+                </header>
+            `;
+        };
+        
+        // CORRECTION DE L'URL D'IMAGE
+        const getItemIconUrl = (itemId) => {
+            // Si vous avez téléchargé les images dans un dossier "img/items/" à la racine de votre projet:
+            // return `img/items/${itemId}.png`; 
+            
+            // Si vous souhaitez utiliser une API publique comme Albion2D pour les images (plus fiable):
+            return `https://render.albiononline.com/v1/item/${itemId}.png`;
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.insertAdjacentHTML('afterbegin', renderHeader('Crafting'));
+            lucide.createIcons();
+        });
+    </script>
+</head>
+<body>
+    <main class="max-w-full 2xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 class="text-3xl font-bold text-white mb-6">Analyse de Rentabilité - Artisanat du Bois (Planches)</h1>
+
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg mb-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Paramètres du Calcul</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <label for="crafting-city" class="block text-sm font-medium text-gray-400">Ville d'Artisanat</label>
+                    <select id="crafting-city" class="custom-input w-full">
+                        <option value="Caerleon">Caerleon</option>
+                        <option value="Bridgewatch">Bridgewatch</option>
+                        <option value="Martlock">Martlock</option>
+                        <option value="Fort Sterling">Fort Sterling</option>
+                        <option value="Lymhurst">Lymhurst</option>
+                        <option value="Thetford">Thetford</option>
+                        <option value="Brecilien">Brecilien</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sell-tax" class="block text-sm font-medium text-gray-400">Taxe de Marché (%)</label>
+                    <input type="number" id="sell-tax" value="4.5" step="0.1" class="custom-input w-full text-right">
+                </div>
+                <div>
+                    <label for="usage-fee" class="block text-sm font-medium text-gray-400">Frais d'Utilisation (%)</label>
+                    <input type="number" id="usage-fee" value="50" step="1" class="custom-input w-full text-right">
+                </div>
+                <div>
+                    <label for="return-rate" class="block text-sm font-medium text-gray-400">Taux de Retour Mat. SANS Focus (%)</label>
+                    <input type="number" id="return-rate" value="15.2" step="0.1" class="custom-input w-full text-right">
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mt-4">Astuce: Le taux de retour avec Focus est plus élevé et doit être ajusté manuellement (ex. : 43.5% ou 53.9%).</p>
+        </div>
+
+
+        <div class="container-scroll bg-gray-900 rounded-xl">
+            <table class="custom-table w-full text-sm">
+                <thead>
+                    <tr class="text-gray-400">
+                        <th>Icône</th>
+                        <th>Nom Produit</th>
+                        <th>Tier</th>
+                        <th>Enchant.</th>
+                        
+                        <th>Icône I</th>
+                        <th>Matériel I</th>
+                        <th class="text-right">Qté I</th>
+                        <th class="text-right">Prix Mat. I (Silver)</th>
+                        
+                        <th>Icône II</th>
+                        <th>Matériel II</th>
+                        <th class="text-right">Qté II</th>
+                        <th class="text-right">Prix Mat. II (Silver)</th>
+
+                        <th class="text-right">Prix Vente (Silver)</th>
+                        <th class="text-right">Coût Mat. (Total)</th>
+                        <th class="text-right">Profit SANS Focus (Silver)</th>
+                        <th class="text-right">Profit AVEC Focus (Silver)</th>
+                        <th class="text-right">Coût Focus (Est.)</th>
+                    </tr>
+                </thead>
+                <tbody id="crafting-table-body">
+                    </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        // La structure de données pour générer le tableau avec les IDs d'objets corrigés
+        const planksData = [
+            // Tier 2
+            { name: 'Planches de Bouleau', tier: 2, ench: 0, id: 'T2_WOOD_PLANKS', mat1: 'Bûches de Bouleau', qty1: 100, id1: 'T2_WOOD', mat2: '', qty2: 0, id2: '', focusCost: 1000 },
+            // Tier 3
+            { name: 'Planches de Châtaignier', tier: 3, ench: 0, id: 'T3_WOOD_PLANKS', mat1: 'Planches de Bouleau', qty1: 100, id1: 'T2_WOOD_PLANKS', mat2: 'Bûches de Châtaignier', qty2: 200, id2: 'T3_WOOD', focusCost: 2400 },
+            // Tier 4
+            { name: 'Planches de Pin (R1)', tier: 4, ench: 0, id: 'T4_WOOD_PLANKS', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T4_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Châtaignier', qty2: 100, id2: 'T3_WOOD_PLANKS', focusCost: 4800 },
+            { name: 'Planches de Pin (R2)', tier: 4, ench: 0, id: 'T4_WOOD_PLANKS', mat1: 'Planches de Châtaignier', qty1: 100, id1: 'T3_WOOD_PLANKS', mat2: 'Bûches de Pin', qty2: 200, id2: 'T4_WOOD', focusCost: 4800 },
+            { name: 'Planches de Pin Non Communes', tier: 4, ench: 1, id: 'T4_WOOD_PLANKS@1', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T4_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Châtaignier', qty2: 100, id2: 'T3_WOOD_PLANKS', focusCost: 8900 },
+            { name: 'Planches de Pin Non Communes', tier: 4, ench: 1, id: 'T4_WOOD_PLANKS@1', mat1: 'Planches de Châtaignier', qty1: 100, id1: 'T3_WOOD_PLANKS', mat2: 'Bûches de Pin Non Communes', qty2: 200, id2: 'T4_WOOD_FOREST_BIPE@1', focusCost: 8900 },
+            { name: 'Planches de Pin Rares', tier: 4, ench: 2, id: 'T4_WOOD_PLANKS@2', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T4_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Châtaignier', qty2: 100, id2: 'T3_WOOD_PLANKS', focusCost: 14300 },
+            { name: 'Planches de Pin Rares', tier: 4, ench: 2, id: 'T4_WOOD_PLANKS@2', mat1: 'Planches de Châtaignier', qty1: 100, id1: 'T3_WOOD_PLANKS', mat2: 'Bûches de Pin Rares', qty2: 200, id2: 'T4_WOOD_FOREST_BIPE@2', focusCost: 14300 },
+            { name: 'Planches de Pin Except.', tier: 4, ench: 3, id: 'T4_WOOD_PLANKS@3', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T4_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Châtaignier', qty2: 100, id2: 'T3_WOOD_PLANKS', focusCost: 23900 },
+            { name: 'Planches de Pin Except.', tier: 4, ench: 3, id: 'T4_WOOD_PLANKS@3', mat1: 'Planches de Châtaignier', qty1: 100, id1: 'T3_WOOD_PLANKS', mat2: 'Bûches de Pin Except.', qty2: 200, id2: 'T4_WOOD_FOREST_BIPE@3', focusCost: 23900 },
+            // Tier 5
+            { name: 'Planches de Cèdre (R1)', tier: 5, ench: 0, id: 'T5_WOOD_PLANKS', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T5_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Pin', qty2: 100, id2: 'T4_WOOD_PLANKS', focusCost: 8900 },
+            { name: 'Planches de Cèdre (R2)', tier: 5, ench: 0, id: 'T5_WOOD_PLANKS', mat1: 'Planches de Pin', qty1: 100, id1: 'T4_WOOD_PLANKS', mat2: 'Bûches de Cèdre', qty2: 300, id2: 'T5_WOOD', focusCost: 8900 },
+            { name: 'Planches de Cèdre Non Communes', tier: 5, ench: 1, id: 'T5_WOOD_PLANKS@1', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T5_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Pin Non Communes', qty2: 100, id2: 'T4_WOOD_PLANKS@1', focusCost: 16000 },
+            { name: 'Planches de Cèdre Non Communes', tier: 5, ench: 1, id: 'T5_WOOD_PLANKS@1', mat1: 'Planches de Pin Non Communes', qty1: 100, id1: 'T4_WOOD_PLANKS@1', mat2: 'Bûches de Cèdre Non Communes', qty2: 300, id2: 'T5_WOOD_STEPPE_BIPE@1', focusCost: 16000 },
+            { name: 'Planches de Cèdre Rares', tier: 5, ench: 2, id: 'T5_WOOD_PLANKS@2', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T5_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Pin Rares', qty2: 100, id2: 'T4_WOOD_PLANKS@2', focusCost: 26900 },
+            { name: 'Planches de Cèdre Rares', tier: 5, ench: 2, id: 'T5_WOOD_PLANKS@2', mat1: 'Planches de Pin Rares', qty1: 100, id1: 'T4_WOOD_PLANKS@2', mat2: 'Bûches de Cèdre Rares', qty2: 300, id2: 'T5_WOOD_STEPPE_BIPE@2', focusCost: 26900 },
+            { name: 'Planches de Cèdre Except.', tier: 5, ench: 3, id: 'T5_WOOD_PLANKS@3', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T5_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Pin Except.', qty2: 100, id2: 'T4_WOOD_PLANKS@3', focusCost: 46100 },
+            { name: 'Planches de Cèdre Except.', tier: 5, ench: 3, id: 'T5_WOOD_PLANKS@3', mat1: 'Planches de Pin Except.', qty1: 100, id1: 'T4_WOOD_PLANKS@3', mat2: 'Bûches de Cèdre Except.', qty2: 300, id2: 'T5_WOOD_STEPPE_BIPE@3', focusCost: 46100 },
+            // Tier 6
+            { name: 'Planches de Chêne Sanglant (R1)', tier: 6, ench: 0, id: 'T6_WOOD_PLANKS', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T6_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Cèdre', qty2: 100, id2: 'T5_WOOD_PLANKS', focusCost: 16000 },
+            { name: 'Planches de Chêne Sanglant (R2)', tier: 6, ench: 0, id: 'T6_WOOD_PLANKS', mat1: 'Planches de Cèdre', qty1: 100, id1: 'T5_WOOD_PLANKS', mat2: 'Bûches de Chêne Sanglant', qty2: 400, id2: 'T6_WOOD', focusCost: 16000 },
+            { name: 'Planches de Chêne Sanglant Non Communes', tier: 6, ench: 1, id: 'T6_WOOD_PLANKS@1', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T6_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Cèdre Non Communes', qty2: 100, id2: 'T5_WOOD_PLANKS@1', focusCost: 28400 },
+            { name: 'Planches de Chêne Sanglant Non Communes', tier: 6, ench: 1, id: 'T6_WOOD_PLANKS@1', mat1: 'Planches de Cèdre Non Communes', qty1: 100, id1: 'T5_WOOD_PLANKS@1', mat2: 'Bûches de Chêne Sanglant Non Communes', qty2: 400, id2: 'T6_WOOD_SWAMP_BIPE@1', focusCost: 28400 },
+            { name: 'Planches de Chêne Sanglant Rares', tier: 6, ench: 2, id: 'T6_WOOD_PLANKS@2', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T6_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Cèdre Rares', qty2: 100, id2: 'T5_WOOD_PLANKS@2', focusCost: 48700 },
+            { name: 'Planches de Chêne Sanglant Rares', tier: 6, ench: 2, id: 'T6_WOOD_PLANKS@2', mat1: 'Planches de Cèdre Rares', qty1: 100, id1: 'T5_WOOD_PLANKS@2', mat2: 'Bûches de Chêne Sanglant Rares', qty2: 400, id2: 'T6_WOOD_SWAMP_BIPE@2', focusCost: 48700 },
+            { name: 'Planches de Chêne Sanglant Except.', tier: 6, ench: 3, id: 'T6_WOOD_PLANKS@3', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T6_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Cèdre Except.', qty2: 100, id2: 'T5_WOOD_PLANKS@3', focusCost: 84400 },
+            { name: 'Planches de Chêne Sanglant Except.', tier: 6, ench: 3, id: 'T6_WOOD_PLANKS@3', mat1: 'Planches de Cèdre Except.', qty1: 100, id1: 'T5_WOOD_PLANKS@3', mat2: 'Bûches de Chêne Sanglant Except.', qty2: 400, id2: 'T6_WOOD_SWAMP_BIPE@3', focusCost: 84400 },
+            // Tier 7
+            { name: 'Planches de Frêne (R1)', tier: 7, ench: 0, id: 'T7_WOOD_PLANKS', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T7_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Chêne Sanglant', qty2: 100, id2: 'T6_WOOD_PLANKS', focusCost: 28400 },
+            { name: 'Planches de Frêne (R2)', tier: 7, ench: 0, id: 'T7_WOOD_PLANKS', mat1: 'Planches de Chêne Sanglant', qty1: 100, id1: 'T6_WOOD_PLANKS', mat2: 'Bûches de Frêne', qty2: 500, id2: 'T7_WOOD', focusCost: 28400 },
+            { name: 'Planches de Frêne Non Communes', tier: 7, ench: 1, id: 'T7_WOOD_PLANKS@1', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T7_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Chêne Sanglant Non Communes', qty2: 100, id2: 'T6_WOOD_PLANKS@1', focusCost: 50000 },
+            { name: 'Planches de Frêne Non Communes', tier: 7, ench: 1, id: 'T7_WOOD_PLANKS@1', mat1: 'Planches de Chêne Sanglant Non Communes', qty1: 100, id1: 'T6_WOOD_PLANKS@1', mat2: 'Bûches de Frêne Non Communes', qty2: 500, id2: 'T7_WOOD_HIGHLAND_BIPE@1', focusCost: 50000 },
+            { name: 'Planches de Frêne Rares', tier: 7, ench: 2, id: 'T7_WOOD_PLANKS@2', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T7_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Chêne Sanglant Rares', qty2: 100, id2: 'T6_WOOD_PLANKS@2', focusCost: 86600 },
+            { name: 'Planches de Frêne Rares', tier: 7, ench: 2, id: 'T7_WOOD_PLANKS@2', mat1: 'Planches de Chêne Sanglant Rares', qty1: 100, id1: 'T6_WOOD_PLANKS@2', mat2: 'Bûches de Frêne Rares', qty2: 500, id2: 'T7_WOOD_HIGHLAND_BIPE@2', focusCost: 86600 },
+            { name: 'Planches de Frêne Except.', tier: 7, ench: 3, id: 'T7_WOOD_PLANKS@3', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T7_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Chêne Sanglant Except.', qty2: 100, id2: 'T6_WOOD_PLANKS@3', focusCost: 150800 },
+            { name: 'Planches de Frêne Except.', tier: 7, ench: 3, id: 'T7_WOOD_PLANKS@3', mat1: 'Planches de Chêne Sanglant Except.', qty1: 100, id1: 'T6_WOOD_PLANKS@3', mat2: 'Bûches de Frêne Except.', qty2: 500, id2: 'T7_WOOD_HIGHLAND_BIPE@3', focusCost: 150800 },
+            // Tier 8
+            { name: 'Planches de Bois-Blanc (R1)', tier: 8, ench: 0, id: 'T8_WOOD_PLANKS', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T8_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Frêne', qty2: 100, id2: 'T7_WOOD_PLANKS', focusCost: 50000 },
+            { name: 'Planches de Bois-Blanc (R2)', tier: 8, ench: 0, id: 'T8_WOOD_PLANKS', mat1: 'Planches de Frêne', qty1: 100, id1: 'T7_WOOD_PLANKS', mat2: 'Bûches de Bois-Blanc', qty2: 500, id2: 'T8_WOOD', focusCost: 50000 },
+            { name: 'Planches de Bois-Blanc Non Communes', tier: 8, ench: 1, id: 'T8_WOOD_PLANKS@1', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T8_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Frêne Non Communes', qty2: 100, id2: 'T7_WOOD_PLANKS@1', focusCost: 87700 },
+            { name: 'Planches de Bois-Blanc Non Communes', tier: 8, ench: 1, id: 'T8_WOOD_PLANKS@1', mat1: 'Planches de Frêne Non Communes', qty1: 100, id1: 'T7_WOOD_PLANKS@1', mat2: 'Bûches de Bois-Blanc Non Communes', qty2: 500, id2: 'T8_WOOD_MOUNTAIN_BIPE@1', focusCost: 87700 },
+            { name: 'Planches de Bois-Blanc Rares', tier: 8, ench: 2, id: 'T8_WOOD_PLANKS@2', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T8_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Frêne Rares', qty2: 100, id2: 'T7_WOOD_PLANKS@2', focusCost: 152700 },
+            { name: 'Planches de Bois-Blanc Rares', tier: 8, ench: 2, id: 'T8_WOOD_PLANKS@2', mat1: 'Planches de Frêne Rares', qty1: 100, id1: 'T7_WOOD_PLANKS@2', mat2: 'Bûches de Bois-Blanc Rares', qty2: 500, id2: 'T8_WOOD_MOUNTAIN_BIPE@2', focusCost: 152700 },
+            { name: 'Planches de Bois-Blanc Except.', tier: 8, ench: 3, id: 'T8_WOOD_PLANKS@3', mat1: 'Cœur d\'Arbre', qty1: 100, id1: 'T8_PLANKS_PLANKS_ARTIFACT', mat2: 'Planches de Frêne Except.', qty2: 100, id2: 'T7_WOOD_PLANKS@3', focusCost: 266600 },
+            { name: 'Planches de Bois-Blanc Except.', tier: 8, ench: 3, id: 'T8_WOOD_PLANKS@3', mat1: 'Planches de Frêne Except.', qty1: 100, id1: 'T7_WOOD_PLANKS@3', mat2: 'Bûches de Bois-Blanc Except.', qty2: 500, id2: 'T8_WOOD_MOUNTAIN_BIPE@3', focusCost: 266600 },
+        ];
+
+        const renderTableRows = () => {
+            const tbody = document.getElementById('crafting-table-body');
+            let html = '';
+
+            planksData.forEach((item, index) => {
+                const rowId = `row-${index}`;
+                
+                // Matériel II - Afficher seulement s'il existe (T3+)
+                const mat2Cell = item.mat2 ? `
+                    <td class="text-center"><img src="${getItemIconUrl(item.id2)}" onerror="this.onerror=null; this.src='https://render.albiononline.com/v1/item/ITEM_NOT_FOUND.png';" alt="${item.mat2}" class="item-icon mx-auto" /></td>
+                    <td>${item.mat2}</td>
+                    <td class="text-right">${item.qty2}</td>
+                    <td><input type="number" id="${rowId}-price-mat2" class="custom-input text-right" value="" placeholder="Prix" min="0"></td>
+                ` : `
+                    <td></td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                `;
+
+                html += `
+                    <tr id="${rowId}">
+                        <td class="text-center"><img src="${getItemIconUrl(item.id)}" onerror="this.onerror=null; this.src='https://render.albiononline.com/v1/item/ITEM_NOT_FOUND.png';" alt="${item.name}" class="item-icon mx-auto" /></td>
+                        <td>${item.name}</td>
+                        <td class="text-center">${item.tier}</td>
+                        <td class="text-center">${item.ench}</td>
+                        
+                        <td class="text-center"><img src="${getItemIconUrl(item.id1)}" onerror="this.onerror=null; this.src='https://render.albiononline.com/v1/item/ITEM_NOT_FOUND.png';" alt="${item.mat1}" class="item-icon mx-auto" /></td>
+                        <td>${item.mat1}</td>
+                        <td class="text-right">${item.qty1}</td>
+                        <td><input type="number" id="${rowId}-price-mat1" class="custom-input text-right" value="" placeholder="Prix" min="0"></td>
+                        
+                        ${mat2Cell}
+                        
+                        <td><input type="number" id="${rowId}-price-sell" class="custom-input text-right" value="" placeholder="Vente" min="0"></td>
+                        <td class="text-right text-yellow-400 font-semibold" id="${rowId}-cost-total">...</td>
+                        <td class="text-right text-red-400 font-semibold" id="${rowId}-profit-no-focus">...</td>
+                        <td class="text-right text-green-400 font-semibold" id="${rowId}-profit-focus">...</td>
+                        <td class="text-right text-blue-400">${item.focusCost.toLocaleString('fr-FR')}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+            // Ajout d'un écouteur d'événement sur tous les champs de saisie pour déclencher le calcul (à implémenter)
+            document.querySelectorAll('.custom-input').forEach(input => {
+                input.addEventListener('input', () => { /* calculateProfit(input.id) */ });
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', renderTableRows);
+
+        // TODO: Prochaine étape : Ajouter la fonction `calculateProfit()` pour un calcul en temps réel.
+    </script>
+</body>
+</html>

@@ -443,11 +443,11 @@
         // --- Fonctions d'Affichage de la Navigation ---
         const renderHeader = (activePage) => {
             const pages = [
-                { name: 'Crafting', icon: 'wrench', file: 'crafting.html', label: 'Artisanat' },
                 { name: 'Market', icon: 'trending-up', file: 'index.html', label: 'Marché' },
                 { name: 'Gold', icon: 'coins', file: 'gold_prices.html', label: 'Or', active: activePage === 'Gold' },
                 { name: 'Breeding', icon: 'egg', file: 'breeding.html', label: 'Élevage', active: activePage === 'Breeding' },
                 { name: 'Timers', icon: 'clock', file: 'timers.html', label: 'Timers', active: activePage === 'Timers' },
+                { name: 'Map', icon: 'map', file: 'map.html', label: 'Carte', active: activePage === 'Map' },
             ];
 
             return `
