@@ -160,7 +160,6 @@ const WEAPONS = [
 ];
 
 const itemsData = [
-    // Concaténation de toutes les armes générées
     ...WEAPONS.flatMap(item => {
         const baseName = item.name_fr || item.name;
         const baseId = item.id || item.baseId;
@@ -168,7 +167,7 @@ const itemsData = [
         const items = [];
         for (let i = parseInt(tier); i <= 8; i++) {
             const currentBaseId = baseId.replace(`T${tier}`, `T${i}`);
-            const currentName = baseName.replace(/ T\d(.d)?$/, ""); // Supprime le tier existant du nom
+            const currentName = baseName.replace(/ T\d(.d)?$/, "");
             items.push({ id: currentBaseId, name_fr: `${currentName} T${i}.0`, category: item.category });
             for (let j = 1; j <= 4; j++) {
                 items.push({ id: `${currentBaseId}@${j}`, name_fr: `${currentName} T${i}.${j}`, category: item.category });
@@ -197,7 +196,7 @@ const itemsData = [
         const items = [];
         for (let i = parseInt(tier); i <= 8; i++) {
             const currentBaseId = baseId.replace(`T${tier}`, `T${i}`);
-            const currentName = baseName.replace(/ T\d(.d)?$/, ""); // Supprime le tier existant du nom
+            const currentName = baseName.replace(/ T\d(.d)?$/, "");
             items.push({ id: currentBaseId, name_fr: `${currentName} T${i}.0`, category: item.category });
             for (let j = 1; j <= 4; j++) {
                 items.push({ id: `${currentBaseId}@${j}`, name_fr: `${currentName} T${i}.${j}`, category: item.category });
@@ -219,7 +218,7 @@ const itemsData = [
         const items = [];
         for (let i = startTier; i <= 8; i++) {
             const currentBaseId = baseId.replace(`T${startTier}`, `T${i}`);
-            const currentName = baseName.replace(/ T\d(.d)?$/, ""); // Supprime le tier existant du nom
+            const currentName = baseName.replace(/ T\d(.d)?$/, ""); 
             items.push({ id: currentBaseId, name_fr: `${currentName} T${i}.0`, category: item.category });
             for (let j = 1; j <= 4; j++) {
                 items.push({ id: `${currentBaseId}@${j}`, name_fr: `${currentName} T${i}.${j}`, category: item.category });
@@ -242,7 +241,7 @@ const itemsData = [
         const items = [];
         for (let i = 4; i <= 8; i++) {
             const currentBaseId = baseId.replace('T4', `T${i}`);
-            const currentName = baseName.replace(/ T\d(.d)?$/, ""); // Supprime le tier existant du nom
+            const currentName = baseName.replace(/ T\d(.d)?$/, "");
             items.push({ id: currentBaseId, name_fr: `${currentName} T${i}.0`, category: item.category });
             for (let j = 1; j <= 4; j++) {
                 items.push({ id: `${currentBaseId}@${j}`, name_fr: `${currentName} T${i}.${j}`, category: item.category });
@@ -265,7 +264,7 @@ const itemsData = [
         const items = [];
         for (let i = 4; i <= 8; i++) {
             const currentBaseId = baseId.replace('T4', `T${i}`);
-            const currentName = baseName.replace(/ T\d(.d)?$/, ""); // Supprime le tier existant du nom
+            const currentName = baseName.replace(/ T\d(.d)?$/, ""); 
             items.push({ id: currentBaseId, name_fr: `${currentName} T${i}.0`, category: item.category });
             for (let j = 1; j <= 4; j++) {
                 items.push({ id: `${currentBaseId}@${j}`, name_fr: `${currentName} T${i}.${j}`, category: item.category });
@@ -368,7 +367,7 @@ const itemsData = [
     { id: "T5_MEAL_SANDWICH", name_fr: "Sandwich au mouton T5", category: "Nourriture" },
     { id: "T7_MEAL_SANDWICH", name_fr: "Sandwich au porc T7", category: "Nourriture" },
 
-    // --- LUXE & ARTEFACTS ---
+    // --- ITEMS & ARTEFACTS ---
     { id: "T4_LUXURYGOODS_GLASS", name_fr: "Verre d'adepte", category: "Luxe" },
     { id: "T5_LUXURYGOODS_GLASS", name_fr: "Verre d'expert", category: "Luxe" },
     { id: "T6_LUXURYGOODS_GLASS", name_fr: "Verre de maître", category: "Luxe" },
@@ -398,15 +397,15 @@ const itemsData = [
     // --- JOURNAUX ---
     ...[
         { baseId: 'T2_JOURNAL_FIBER', name: "Journal de récolteur de fibre", category: "Journal" },
-        { baseId: 'T2_JOURNAL_HIDE', name: "Journal de dépeceur", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_ORE', name: "Journal de prospecteur", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_ROCK', name: "Journal de tailleur de pierre", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_WOOD', name: "Journal de bûcheron", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_MERCENARY', name: "Journal de mercenaire", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_BLACKSMITH', name: "Journal de forgeron", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_FLETCHER', name: "Journal d'artisan archer", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_IMBUER', name: "Journal d'enchanteur", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
-        { baseId: 'T2_JOURNAL_TINKER', name: "Journal de bricoleur", category: "Journal" }, // Correction: baseId était T2_JOURNAL_FIBER
+        { baseId: 'T2_JOURNAL_HIDE', name: "Journal de dépeceur", category: "Journal" },
+        { baseId: 'T2_JOURNAL_ORE', name: "Journal de prospecteur", category: "Journal" },
+        { baseId: 'T2_JOURNAL_ROCK', name: "Journal de tailleur de pierre", category: "Journal" },
+        { baseId: 'T2_JOURNAL_WOOD', name: "Journal de bûcheron", category: "Journal" },
+        { baseId: 'T2_JOURNAL_MERCENARY', name: "Journal de mercenaire", category: "Journal" },
+        { baseId: 'T2_JOURNAL_BLACKSMITH', name: "Journal de forgeron", category: "Journal" },
+        { baseId: 'T2_JOURNAL_FLETCHER', name: "Journal d'artisan archer", category: "Journal" },
+        { baseId: 'T2_JOURNAL_IMBUER', name: "Journal d'enchanteur", category: "Journal" },
+        { baseId: 'T2_JOURNAL_TINKER', name: "Journal de bricoleur", category: "Journal" },
     ].flatMap(item => {
         const items = [];
         for (let i = 2; i <= 8; i++) {
